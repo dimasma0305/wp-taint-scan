@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>wp-taint-scan</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛡️</text></svg>">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">🛡️</span>
+      <div>
+        <h1>wp-taint-scan</h1>
+        <p class="tagline">WordPress plugin vulnerability scanner</p>
+      </div>
+    </div>
+    <nav class="tabs" id="tabs">
+      <button class="tab active" data-view="discover">Discover</button>
+      <button class="tab" data-view="jobs">Jobs <span class="badge" id="jobsBadge" hidden>0</span></button>
+      <button class="tab" data-view="diff">Version&nbsp;Diff</button>
+    </nav>
+    <div class="stats" id="stats" title="Aggregate scan statistics"></div>
+  </header>
+
+  <main>
+    <!-- DISCOVER -->
+    <section class="view active" id="view-discover">
+      <div class="searchbar">
+        <input type="search" id="search" placeholder="Search WordPress plugins by name…  (e.g. contact form, woocommerce)" autocomplete="off" autofocus>
+        <span class="hint">Powered by the WordPress.org plugin directory</span>
+      </div>
+      <div id="searchStatus" class="status"></div>
+      <div class="grid" id="results"></div>
+    </section>
+
+    <!-- JOBS -->
+    <section class="view" id="view-jobs">
+      <div class="toolbar">
+        <div class="filters" id="jobFilters">
+          <button class="chip active" data-filter="all">All</button>
+          <button class="chip" data-filter="active">Active</button>
+          <button class="chip" data-filter="done">Done</button>
+          <button class="chip" data-filter="failed">Failed</button>
+        </div>
+        <button class="btn ghost" id="clearJobs">Clear finished</button>
+      </div>
+      <div id="jobsList" class="jobs"></div>
+      <div class="empty" id="jobsEmpty">No scans yet. Find a plugin in <b>Discover</b> and scan a version.</div>
+    </section>
+
+    <!-- DIFF -->
+    <section class="view" id="view-diff">
+      <div class="diff-setup">
+        <h2>Compare findings across two scanned versions</h2>
+        <p class="muted">Scan at least two versions of the same plugin first, then pick them here to see which findings were <b>introduced</b> or <b>fixed</b>.</p>
+        <div class="diff-controls">
+          <input type="text" id="diffSlug" placeholder="plugin-slug">
+          <select id="diffA"><option value="">version A…</option></select>
+          <span>→</span>
+          <select id="diffB"><option value="">version B…</option></select>
+          <button class="btn" id="diffRun">Compare</button>
+        </div>
+      </div>
+      <div id="diffResult"></div>
+    </section>
+  </main>
+
+  <!-- Plugin detail drawer -->
+  <div class="drawer-overlay" id="overlay" hidden></div>
+  <aside class="drawer" id="drawer" hidden></aside>
+
+  <div class="toasts" id="toasts"></div>
+
+  <script src="/app.js"></script>
+</body>
+</html>

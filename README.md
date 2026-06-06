@@ -64,6 +64,44 @@ Each scan writes:
 | `human-summary.md` | Findings ranked by exploitability (unauth/low-priv first). |
 | `README.md` | Run metadata. |
 
+## Web UI
+
+`taint-web` is a self-contained web app for discovering and scanning plugins straight from the WordPress.org directory — search by name, browse every released version, and scan one version or a whole batch **in parallel**.
+
+```bash
+go build -o bin/taint-web ./cmd/taint-web
+./bin/taint-web                 # http://localhost:8080
+# flags: -addr -cache-dir -concurrency -mem-limit-mb -hard-cap-mb -timeout
+```
+
+What it gives you:
+
+- **Search** the WordPress.org plugin directory by name (installs, rating, description).
+- **Version picker** — every released version, newest-first; scan the latest, a multi-selected subset, or **all versions** as one batch.
+- **Parallel scanning** — a bounded worker pool runs N versions at once; live progress via Server-Sent Events.
+- **Findings viewer** — grouped by severity (derived from the WordPress access tier: `unauthenticated`→critical, low-priv→high, nonce-only→medium, capability-checked→low), each with the source→sink dataflow trace and code snippets. Filter by severity, export per scan as JSON or Markdown.
+- **Version diff** — compare two scanned versions to see which findings were **introduced** or **fixed** (great for pinpointing the version that added or patched a bug).
+- **Result + download caching** — re-scanning a version is instant; downloaded zips are reused.
+
+### Isolation & safety
+
+Every scan runs in a **separate child process** (`taint-web -scan-worker …`) — the same binary re-invokes itself — with a soft heap ceiling (`-mem-limit-mb`), a hard RSS watchdog (`-hard-cap-mb`, kills + marks the job *skipped*), and a wall-clock `-timeout`. A pathological mega-plugin therefore can never OOM or crash the server; only its own worker dies. Downloads are size-capped, zip extraction is **zip-slip-safe** with uncompressed-size/file-count limits, and all plugin/version inputs are strictly validated before they touch a URL or a filesystem path. The server only ever talks to the hardcoded `api.wordpress.org` / `downloads.wordpress.org` hosts (no SSRF), and the UI renders all untrusted plugin data as text (no HTML injection from malicious plugin code in snippets).
+
+### HTTP API
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /api/search?q=` | search plugins by name |
+| `GET /api/plugin?slug=` | plugin info + sorted versions + which are already scanned |
+| `POST /api/scan` | `{slug, name, versions[], mode:"selected\|latest\|all", force}` → enqueue jobs |
+| `GET /api/jobs[?batch=]` | list jobs (optionally one batch) |
+| `GET /api/job?id=` | one job with findings |
+| `GET /api/job/export?id=&format=json\|md` | download a report |
+| `POST /api/cancel?id=` | cancel a queued/running job |
+| `GET /api/diff?slug=&a=&b=` | finding delta between two scanned versions |
+| `GET /api/stats` | aggregate counters |
+| `GET /api/events` | Server-Sent Events stream of job updates |
+
 ## Mass-scanning safely (memory)
 
 The engine's peak held memory is small (~0.2–0.7 GB on normal plugins), but a handful of
