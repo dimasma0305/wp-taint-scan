@@ -165,20 +165,41 @@ func (c *Client) base() string {
 	return apiBase
 }
 
-// Search queries plugins by free text. page is 1-based; perPage is clamped 1..50.
+// Query parameterizes a plugin listing request.
+type Query struct {
+	Search  string // free-text search; takes precedence over Browse
+	Browse  string // popular | featured | new | updated (used when Search == "")
+	Page    int    // 1-based
+	PerPage int    // clamped 1..100
+}
+
+// Search queries plugins by free text. page is 1-based; perPage is clamped 1..100.
 func (c *Client) Search(ctx context.Context, query string, page, perPage int) (*SearchResult, error) {
+	return c.Query(ctx, Query{Search: query, Page: page, PerPage: perPage})
+}
+
+// Query lists plugins by search text or a browse mode, with pagination.
+func (c *Client) Query(ctx context.Context, qy Query) (*SearchResult, error) {
+	page := qy.Page
 	if page < 1 {
 		page = 1
 	}
+	perPage := qy.PerPage
 	if perPage < 1 {
 		perPage = 24
 	}
-	if perPage > 50 {
-		perPage = 50
+	if perPage > 100 {
+		perPage = 100
 	}
 	q := url.Values{}
 	q.Set("action", "query_plugins")
-	q.Set("request[search]", query)
+	if qy.Search != "" {
+		q.Set("request[search]", qy.Search)
+	} else if qy.Browse != "" {
+		q.Set("request[browse]", qy.Browse)
+	} else {
+		q.Set("request[browse]", "popular")
+	}
 	q.Set("request[page]", strconv.Itoa(page))
 	q.Set("request[per_page]", strconv.Itoa(perPage))
 	q.Set("request[fields][icons]", "1")

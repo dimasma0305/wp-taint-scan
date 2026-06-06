@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/dimasma0305/wp-taint-scan/internal/scanjob"
@@ -17,6 +17,9 @@ const maxBatchVersions = 400
 type apiServer struct {
 	mgr *scanjob.Manager
 	wp  *wporg.Client
+
+	scMu        sync.Mutex
+	searchCache map[string]*searchCacheEntry
 }
 
 func (s *apiServer) routes(mux *http.ServeMux) {
@@ -31,23 +34,6 @@ func (s *apiServer) routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/diff", s.handleDiff)
 	mux.HandleFunc("GET /api/stats", s.handleStats)
 	mux.HandleFunc("GET /api/events", s.handleEvents)
-}
-
-func (s *apiServer) handleSearch(w http.ResponseWriter, r *http.Request) {
-	q := strings.TrimSpace(r.URL.Query().Get("q"))
-	if q == "" {
-		writeJSON(w, 200, &wporg.SearchResult{Plugins: []wporg.Plugin{}})
-		return
-	}
-	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
-	ctx, cancel := contextFrom(r, 30*time.Second)
-	defer cancel()
-	res, err := s.wp.Search(ctx, q, page, 24)
-	if err != nil {
-		httpError(w, http.StatusBadGateway, "search failed: "+err.Error())
-		return
-	}
-	writeJSON(w, 200, res)
 }
 
 // pluginResponse augments wp.org info with which versions are already scanned.

@@ -26,6 +26,7 @@ const state = {
   view: "discover",
   jobFilter: "all",
   selected: new Set(),   // selected versions in drawer
+  search: { q: "", sort: "relevance", minInstalls: 0, maxInstalls: 0, minRating: 0, page: 1 },
 };
 
 /* ---------- API ---------- */
@@ -95,27 +96,61 @@ function showView(name) {
 }
 
 /* ---------- search ---------- */
+function searchActive() {
+  const s = state.search;
+  return s.q !== "" || s.sort !== "relevance" || s.minInstalls > 0 || s.maxInstalls > 0 || s.minRating > 0;
+}
 let searchTimer = null;
 function onSearchInput(e) {
-  const q = e.target.value.trim();
+  state.search.q = e.target.value.trim();
+  state.search.page = 1;
   clearTimeout(searchTimer);
-  if (!q) { clear($("#results")); $("#searchStatus").textContent = ""; return; }
-  searchTimer = setTimeout(() => runSearch(q), 350);
+  searchTimer = setTimeout(() => applySearch(), 350);
 }
-async function runSearch(q) {
+// applySearch reads state.search and fetches a page (or clears when nothing is active).
+async function applySearch() {
+  if (!searchActive()) { clear($("#results")); $("#pager").hidden = true; $("#searchStatus").textContent = ""; return; }
+  const s = state.search;
+  const qs = new URLSearchParams({
+    q: s.q, page: String(s.page), sort: s.sort,
+    min_installs: String(s.minInstalls), max_installs: String(s.maxInstalls), min_rating: String(s.minRating),
+  });
   $("#searchStatus").textContent = "Searching…";
   try {
-    const res = await api.get("/api/search?q=" + encodeURIComponent(q));
+    const res = await api.get("/api/search?" + qs.toString());
     renderResults(res);
+    renderPager(res);
   } catch (err) {
     $("#searchStatus").textContent = "Search failed: " + err.message;
+    $("#pager").hidden = true;
   }
+}
+function renderPager(res) {
+  const pager = $("#pager");
+  clear(pager);
+  const pages = res.pages || 1, page = res.page || 1;
+  if (pages <= 1) { pager.hidden = true; return; }
+  pager.hidden = false;
+  pager.append(
+    h("button", { class: "btn ghost sm", disabled: page <= 1, onclick: () => gotoPage(page - 1) }, "‹ Prev"),
+    h("span", { class: "pageinfo", text: `Page ${page} of ${pages}` }),
+    h("button", { class: "btn ghost sm", disabled: page >= pages, onclick: () => gotoPage(page + 1) }, "Next ›"),
+  );
+}
+function gotoPage(p) {
+  state.search.page = p;
+  applySearch();
+  window.scrollTo({ top: 0, behavior: "smooth" });
 }
 function renderResults(res) {
   const grid = $("#results");
   clear(grid);
   const plugins = res.plugins || [];
-  $("#searchStatus").textContent = res.results ? (res.results.toLocaleString() + " plugins found — showing top " + plugins.length) : (plugins.length + " results");
+  const total = res.results || plugins.length;
+  let status = total.toLocaleString() + " result" + (total === 1 ? "" : "s");
+  if (res.capped) status += " (showing first matches — narrow your search to see more)";
+  if (plugins.length === 0) status = "No plugins match these filters.";
+  $("#searchStatus").textContent = status;
   for (const p of plugins) {
     const icon = p.icons && (p.icons.svg || p.icons["2x"] || p.icons["1x"] || p.icons.default) || "";
     const card = h("div", { class: "card", onclick: () => openPlugin(p.slug, p.name) },
@@ -534,6 +569,17 @@ async function loadExistingJobs() {
 async function init() {
   $("#tabs").addEventListener("click", (e) => { const t = e.target.closest(".tab"); if (t) showView(t.dataset.view); });
   $("#search").addEventListener("input", onSearchInput);
+  $("#fSort").addEventListener("change", (e) => { state.search.sort = e.target.value; state.search.page = 1; applySearch(); });
+  $("#fInstalls").addEventListener("change", (e) => {
+    const [mn, mx] = e.target.value.split(":").map(Number);
+    state.search.minInstalls = mn || 0; state.search.maxInstalls = mx || 0; state.search.page = 1; applySearch();
+  });
+  $("#fRating").addEventListener("change", (e) => { state.search.minRating = Number(e.target.value) || 0; state.search.page = 1; applySearch(); });
+  $("#fReset").addEventListener("click", () => {
+    Object.assign(state.search, { sort: "relevance", minInstalls: 0, maxInstalls: 0, minRating: 0, page: 1 });
+    $("#fSort").value = "relevance"; $("#fInstalls").value = "0:0"; $("#fRating").value = "0";
+    applySearch();
+  });
   $("#jobFilters").addEventListener("click", (e) => {
     const c = e.target.closest(".chip"); if (!c) return;
     state.jobFilter = c.dataset.filter;

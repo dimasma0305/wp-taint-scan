@@ -31,8 +31,38 @@
         <input type="search" id="search" placeholder="Search WordPress plugins by name…  (e.g. contact form, woocommerce)" autocomplete="off" autofocus>
         <span class="hint">Powered by the WordPress.org plugin directory</span>
       </div>
+      <div class="filterbar">
+        <label>Sort
+          <select id="fSort">
+            <option value="relevance">Relevance</option>
+            <option value="installs">Most installed</option>
+            <option value="rating">Highest rated</option>
+            <option value="updated">Recently updated</option>
+            <option value="name">Name A–Z</option>
+          </select>
+        </label>
+        <label>Active installs
+          <select id="fInstalls">
+            <option value="0:0">Any</option>
+            <option value="0:10000">Under 10K</option>
+            <option value="10000:50000">10K – 50K</option>
+            <option value="50000:200000">50K – 200K</option>
+            <option value="200000:1000000">200K – 1M</option>
+            <option value="1000000:0">1M+</option>
+          </select>
+        </label>
+        <label>Min rating
+          <select id="fRating">
+            <option value="0">Any</option>
+            <option value="60">★ 3+</option>
+            <option value="80">★ 4+</option>
+          </select>
+        </label>
+        <button class="btn ghost sm" id="fReset" title="Reset filters">Reset</button>
+      </div>
       <div id="searchStatus" class="status"></div>
       <div class="grid" id="results"></div>
+      <div class="pager" id="pager" hidden></div>
     </section>
 
     <!-- JOBS -->
