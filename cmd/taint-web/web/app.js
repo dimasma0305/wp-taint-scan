@@ -92,7 +92,7 @@ function showView(name) {
   document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("active", t.dataset.view === name));
   document.querySelectorAll(".view").forEach((v) => v.classList.toggle("active", v.id === "view-" + name));
   if (name === "jobs") renderJobs();
-  if (name === "diff") refreshDiffVersions();
+  if (name === "diff") populateDiffPlugins();
 }
 
 /* ---------- search ---------- */
@@ -107,15 +107,15 @@ function onSearchInput(e) {
   clearTimeout(searchTimer);
   searchTimer = setTimeout(() => applySearch(), 350);
 }
-// applySearch reads state.search and fetches a page (or clears when nothing is active).
+// applySearch reads state.search and fetches a page. With nothing active it
+// shows popular plugins so the page is never blank.
 async function applySearch() {
-  if (!searchActive()) { clear($("#results")); $("#pager").hidden = true; $("#searchStatus").textContent = ""; return; }
   const s = state.search;
   const qs = new URLSearchParams({
     q: s.q, page: String(s.page), sort: s.sort,
     min_installs: String(s.minInstalls), max_installs: String(s.maxInstalls), min_rating: String(s.minRating),
   });
-  $("#searchStatus").textContent = "Searching…";
+  $("#searchStatus").textContent = s.q || searchActive() ? "Searching…" : "Loading popular plugins…";
   try {
     const res = await api.get("/api/search?" + qs.toString());
     renderResults(res);
@@ -165,6 +165,10 @@ function renderResults(res) {
           p.version ? h("span", {}, "v", h("b", { text: p.version })) : null,
         ),
       ),
+      h("button", {
+        class: "btn sm card-scan", title: "Scan the latest version",
+        onclick: (e) => { e.stopPropagation(); doScan(p.slug, p.name, [], "latest", { stay: true }); },
+      }, "Scan latest"),
     );
     grid.append(card);
   }
@@ -274,12 +278,14 @@ function confirmScanAll(slug, name, n) {
   doScan(slug, name, [], "all");
 }
 
-async function doScan(slug, name, versions, mode) {
+async function doScan(slug, name, versions, mode, opts = {}) {
   try {
     const res = await api.post("/api/scan", { slug, name, versions: versions || [], mode });
     (res.jobs || []).forEach((j) => state.jobs.set(j.id, j));
     updateBadge();
-    toast("Queued " + res.count + " scan" + (res.count === 1 ? "" : "s") + " for " + slug, "ok");
+    const verb = res.jobs && res.jobs[0] && res.jobs[0].from_cache ? "Loaded cached scan" : "Queued " + res.count + " scan" + (res.count === 1 ? "" : "s");
+    toast(verb + " for " + slug, "ok");
+    if (opts.stay) return;            // card scan: stay on Discover
     closeDrawer();
     showView("jobs");
   } catch (err) {
@@ -473,17 +479,36 @@ function traceStep(tag, loc) {
 }
 
 /* ---------- diff view ---------- */
+// plugins with >=2 scanned versions are eligible for diffing
+function diffEligiblePlugins() {
+  const m = new Map();
+  for (const j of state.jobs.values()) {
+    if (j.status !== "done") continue;
+    if (!m.has(j.slug)) m.set(j.slug, { name: j.plugin_name || j.slug, versions: new Set() });
+    m.get(j.slug).versions.add(j.version);
+  }
+  return [...m.entries()].filter(([, v]) => v.versions.size >= 2);
+}
+function populateDiffPlugins() {
+  const sel = $("#diffSlug");
+  const cur = sel.value;
+  const eligible = diffEligiblePlugins().sort((a, b) => a[1].name.localeCompare(b[1].name));
+  clear(sel);
+  sel.append(h("option", { value: "", text: eligible.length ? "choose a plugin…" : "scan ≥2 versions of a plugin first" }));
+  for (const [slug, v] of eligible) sel.append(h("option", { value: slug, text: v.name + " (" + v.versions.size + " versions)" }));
+  if (eligible.some(([s]) => s === cur)) sel.value = cur;
+  refreshDiffVersions();
+}
 function refreshDiffVersions() {
-  const slug = $("#diffSlug").value.trim();
+  const slug = $("#diffSlug").value;
   const done = [...state.jobs.values()].filter((j) => j.slug === slug && j.status === "done").map((j) => j.version);
-  const uniq = [...new Set(done)].sort((a, b) => a < b ? 1 : -1);
+  const uniq = [...new Set(done)].sort((a, b) => a < b ? 1 : -1); // newest first
   for (const sel of [$("#diffA"), $("#diffB")]) {
-    const cur = sel.value;
     clear(sel);
     sel.append(h("option", { value: "", text: sel.id === "diffA" ? "version A…" : "version B…" }));
     for (const v of uniq) sel.append(h("option", { value: v, text: v }));
-    if (uniq.includes(cur)) sel.value = cur;
   }
+  if (uniq.length >= 2) { $("#diffA").value = uniq[1]; $("#diffB").value = uniq[0]; } // older → newest
 }
 async function runDiff() {
   const slug = $("#diffSlug").value.trim(), a = $("#diffA").value, b = $("#diffB").value;
@@ -590,11 +615,35 @@ async function init() {
     for (const [id, j] of state.jobs) if (j.status !== "queued" && j.status !== "downloading" && j.status !== "scanning") state.jobs.delete(id);
     renderJobs(); updateBadge();
   });
-  $("#diffSlug").addEventListener("input", refreshDiffVersions);
+  $("#diffSlug").addEventListener("change", refreshDiffVersions);
   $("#diffRun").addEventListener("click", runDiff);
+
+  // quick chips + bounty preset
+  $("#quickChips").addEventListener("click", (e) => {
+    const c = e.target.closest(".chip");
+    if (!c) return;
+    if (c.dataset.preset === "fresh") {
+      Object.assign(state.search, { q: "", sort: "new", minInstalls: 0, maxInstalls: 1000, minRating: 0, page: 1 });
+      $("#search").value = ""; $("#fSort").value = "new"; $("#fInstalls").value = "0:1000"; $("#fRating").value = "0";
+    } else if (c.dataset.q) {
+      Object.assign(state.search, { q: c.dataset.q, page: 1 });
+      $("#search").value = c.dataset.q;
+    }
+    applySearch();
+  });
+
+  // "/" focuses the search box (unless already typing)
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "/" || e.ctrlKey || e.metaKey) return;
+    const t = e.target.tagName;
+    if (t === "INPUT" || t === "TEXTAREA" || t === "SELECT") return;
+    e.preventDefault();
+    $("#search").focus();
+  });
 
   await loadExistingJobs(); // load before SSE so no live update gets clobbered
   connectSSE();
+  applySearch();            // show popular plugins on load (no blank screen)
   refreshStats();
   setInterval(refreshStats, 8000);
 }

@@ -28,8 +28,16 @@
     <!-- DISCOVER -->
     <section class="view active" id="view-discover">
       <div class="searchbar">
-        <input type="search" id="search" placeholder="Search WordPress plugins by name…  (e.g. contact form, woocommerce)" autocomplete="off" autofocus>
+        <input type="search" id="search" placeholder="Search WordPress plugins by name…   (press / to focus)" autocomplete="off" autofocus>
         <span class="hint">Powered by the WordPress.org plugin directory</span>
+      </div>
+      <div class="quickchips" id="quickChips">
+        <span class="qlabel">Try:</span>
+        <button class="chip" data-q="contact form">contact form</button>
+        <button class="chip" data-q="booking">booking</button>
+        <button class="chip" data-q="woocommerce">woocommerce</button>
+        <button class="chip" data-q="donation">donation</button>
+        <button class="chip preset" data-preset="fresh">★ Fresh low-install targets</button>
       </div>
       <div class="filterbar">
         <label>Sort
@@ -89,7 +97,7 @@
         <h2>Compare findings across two scanned versions</h2>
         <p class="muted">Scan at least two versions of the same plugin first, then pick them here to see which findings were <b>introduced</b> or <b>fixed</b>.</p>
         <div class="diff-controls">
-          <input type="text" id="diffSlug" placeholder="plugin-slug">
+          <select id="diffSlug"><option value="">choose a plugin…</option></select>
           <select id="diffA"><option value="">version A…</option></select>
           <span>→</span>
           <select id="diffB"><option value="">version B…</option></select>
