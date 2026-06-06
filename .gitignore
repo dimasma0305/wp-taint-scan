@@ -3,6 +3,9 @@
 *.out
 /tmp/
 /output/
+# local multi-repo dev (go work init . ../php-parser-go)
+go.work
+go.work.sum
 # corpus fixtures are large real plugin trees — fetch via download_corpus_plugins.py
 /test/semgrep_bundle_corpus/fixtures/
 /test/semgrep_bundle_corpus/__pycache__/

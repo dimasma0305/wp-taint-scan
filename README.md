@@ -1,13 +1,42 @@
-# wp-taint-scan
+<div align="center">
 
-A native **Go static taint-analysis engine that finds vulnerabilities in WordPress plugins** — no PHP runtime, no Semgrep, no external services. It parses plugin source with [`php-parser-go`](../php-parser-go), then runs an interprocedural taint analysis that understands the **WordPress security model** (capability tiers, nonces, REST permission callbacks, AJAX/hook entrypoints) — not just generic source→sink flow.
+<img src="docs/banner.png" alt="wp-taint-scan" width="780">
 
-The analysis binary is `taint-scan` (installed as `phparser`).
+<p><b>Find real vulnerabilities in WordPress plugins.</b> Search the plugin directory, scan any version — or every version — in parallel, and diff findings across releases. A native Go taint-analysis engine that understands the <i>WordPress security model</i>, not just generic source→sink flow.</p>
+
+[![Go](https://img.shields.io/badge/Go-1.25+-00ADD8?logo=go&logoColor=white)](https://go.dev)
+[![CI](https://github.com/dimasma0305/wp-taint-scan/actions/workflows/ci.yml/badge.svg)](https://github.com/dimasma0305/wp-taint-scan/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![PRs welcome](https://img.shields.io/badge/PRs-welcome-7c5cff.svg)](https://github.com/dimasma0305/wp-taint-scan/pulls)
+![Dependencies](https://img.shields.io/badge/dependencies-stdlib%20only-22c55e.svg)
+
+[Quick start](#install--build) · [Web UI](#web-ui) · [How it works](#why-its-different) · [HTTP API](#http-api)
+
+<sub>⭐ If this is useful, a star helps others find it.</sub>
+
+</div>
+
+---
+
+## Screenshots
+
+|  |  |
+|:--:|:--:|
+| **Search the WordPress.org directory** | **Pick a version, or scan them all** |
+| [![Discover](docs/screenshots/01-discover.png)](docs/screenshots/01-discover.png) | [![Versions](docs/screenshots/02-versions.png)](docs/screenshots/02-versions.png) |
+| **Parallel scan dashboard (live)** | **Findings + source→sink dataflow trace** |
+| [![Jobs](docs/screenshots/03-jobs.png)](docs/screenshots/03-jobs.png) | [![Findings](docs/screenshots/04-findings.png)](docs/screenshots/04-findings.png) |
+
+**Version diff** — see exactly which findings were *introduced* or *fixed* between two releases:
+
+[![Diff](docs/screenshots/05-diff.png)](docs/screenshots/05-diff.png)
 
 ```
 plugin source ──▶ php-parser-go ──▶ call graph + taint propagation ──▶ findings
                                      (WordPress-aware authorization context)
 ```
+
+> The analysis engine ships as a CLI (`taint-scan`, installed as `phparser`) and a web app (`taint-web`). No PHP runtime, no Semgrep, no external services — just Go.
 
 ## Why it's different
 
@@ -33,14 +62,29 @@ Analysis runs as independent **sink-op batches** (`delete`, `read`, `open`, `inc
 
 ## Install & build
 
-Requires Go 1.25+ and a local checkout of [`php-parser-go`](../php-parser-go) as a sibling
-directory (wired via a `replace` directive in `go.mod`).
+Requires **Go 1.25+**. The PHP parser ([`php-parser-go`](https://github.com/dimasma0305/php-parser-go)) is a normal module dependency — no extra checkout needed.
 
 ```bash
-git clone <this-repo>            wp-taint-scan
-git clone <php-parser-go-repo>   php-parser-go    # sibling of wp-taint-scan
+# install the web UI
+go install github.com/dimasma0305/wp-taint-scan/cmd/taint-web@latest
+
+# …or the CLI scanner
+go install github.com/dimasma0305/wp-taint-scan/cmd/taint-scan@latest
+```
+
+Or from source:
+
+```bash
+git clone https://github.com/dimasma0305/wp-taint-scan
 cd wp-taint-scan
-go build -o bin/phparser ./cmd/taint-scan
+go build -o bin/taint-web ./cmd/taint-web    # web UI
+go build -o bin/phparser  ./cmd/taint-scan   # CLI scanner
+```
+
+Then launch the web UI and open <http://localhost:8080>:
+
+```bash
+./bin/taint-web
 ```
 
 ## Usage
@@ -161,11 +205,20 @@ docs/               effectiveness audits, optimization plans, roadmap
 
 ## Dependency
 
-Built on **[`php-parser-go`](../php-parser-go)** for PHP parsing/AST. The `go.mod`
-`replace` directive points at the sibling checkout; for a published setup, replace it with a
-versioned `require`.
+Built on **[`php-parser-go`](https://github.com/dimasma0305/php-parser-go)** (a native Go port of nikic/PHP-Parser) for PHP parsing/AST — pulled in as a versioned module, no other third-party dependencies. To hack on both repos at once, side-by-side:
+
+```bash
+git clone https://github.com/dimasma0305/php-parser-go
+git clone https://github.com/dimasma0305/wp-taint-scan
+cd wp-taint-scan && go work init . ../php-parser-go
+```
+
+## Contributing
+
+Issues and PRs welcome. `go build ./...`, `go test ./...`, and `go vet` should pass; CI runs build + vet + race tests on every PR. No plugin-specific or CVE-specific logic in the engine — detectors must be generic.
 
 ## License
 
-For authorized security testing, CTF, and defensive research. The bundled `php-parser-go`
-derives from `nikic/PHP-Parser` (BSD-3-Clause).
+[MIT](LICENSE) © Dimas Maulana ([dimasma0305](https://github.com/dimasma0305)). The bundled `php-parser-go` derives from [nikic/PHP-Parser](https://github.com/nikic/PHP-Parser) (BSD-3-Clause).
+
+> Intended for **authorized** security testing, CTF, and defensive research — scan plugins you own or are permitted to test.

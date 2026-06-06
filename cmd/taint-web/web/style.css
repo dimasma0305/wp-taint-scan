@@ -47,7 +47,7 @@ button { font-family: inherit; cursor: pointer; }
   flex-wrap: wrap;
 }
 .brand { display: flex; align-items: center; gap: 12px; }
-.logo { font-size: 28px; }
+.logo { width: 34px; height: 34px; display: block; }
 .brand h1 { font-size: 18px; letter-spacing: -.02em; }
 .tagline { margin: 0; font-size: 12px; color: var(--muted); }
 
@@ -118,7 +118,7 @@ main { padding: 24px; max-width: 1240px; margin: 0 auto; }
 .drawer-head .icon { width: 56px; height: 56px; border-radius: 12px; background: var(--bg-elev2); }
 .drawer-head .close { margin-left: auto; background: var(--bg-elev2); border: 1px solid var(--border); color: var(--muted); width: 32px; height: 32px; border-radius: 8px; font-size: 18px; }
 .drawer-head .close:hover { color: var(--text); }
-.drawer-body { padding: 18px 20px; overflow-y: auto; flex: 1; }
+.drawer-body { padding: 18px 20px; overflow-y: auto; overflow-x: hidden; flex: 1; }
 .drawer h2 { font-size: 17px; }
 .drawer .sub { color: var(--muted); font-size: 12.5px; margin: 2px 0 0; }
 
@@ -207,18 +207,20 @@ main { padding: 24px; max-width: 1240px; margin: 0 auto; }
 .finding { border: 1px solid var(--border); border-radius: 10px; margin-bottom: 10px; overflow: hidden; }
 .finding-head { padding: 12px 14px; display: flex; gap: 10px; align-items: flex-start; cursor: pointer; }
 .finding-head:hover { background: var(--bg-elev2); }
-.finding-head .rule { font-family: var(--mono); font-size: 12px; color: var(--accent); }
-.finding-head .msg { font-size: 13px; margin-top: 3px; }
-.finding-head .loc { font-family: var(--mono); font-size: 11.5px; color: var(--muted); margin-top: 4px; }
+.finding-head .grow { flex: 1; min-width: 0; }
+.finding-head .rule { font-family: var(--mono); font-size: 12px; color: var(--accent); overflow-wrap: anywhere; }
+.finding-head .msg { font-size: 13px; margin-top: 3px; overflow-wrap: anywhere; }
+.finding-head .loc { font-family: var(--mono); font-size: 11.5px; color: var(--muted); margin-top: 4px; overflow-wrap: anywhere; }
 .finding-body { padding: 0 14px 14px; display: none; }
 .finding.open .finding-body { display: block; }
 .trace { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; margin-top: 8px; }
 .trace .step { display: flex; gap: 8px; padding: 4px 0; font-size: 12px; }
-.trace .step .tag { font-size: 10px; font-weight: 700; text-transform: uppercase; color: var(--muted); min-width: 48px; }
-.trace .step code { font-family: var(--mono); color: var(--text); }
-.snippet { font-family: var(--mono); font-size: 11.5px; background: #0a0e14; border-radius: 6px; padding: 6px 9px; margin-top: 3px; color: #c9d4e3; overflow-x: auto; white-space: pre; }
+.trace .step .tag { font-size: 10px; font-weight: 700; text-transform: uppercase; color: var(--muted); min-width: 48px; flex-shrink: 0; }
+.trace .step > div { flex: 1; min-width: 0; }
+.trace .step code { font-family: var(--mono); color: var(--text); overflow-wrap: anywhere; word-break: break-word; }
+.snippet { font-family: var(--mono); font-size: 11.5px; background: #0a0e14; border-radius: 6px; padding: 6px 9px; margin-top: 3px; color: #c9d4e3; max-width: 100%; overflow-x: auto; white-space: pre; }
 .kv { display: flex; gap: 8px; font-size: 12px; margin-top: 6px; flex-wrap: wrap; }
-.kv span { background: var(--bg-elev2); border: 1px solid var(--border); padding: 2px 8px; border-radius: 6px; }
+.kv span { background: var(--bg-elev2); border: 1px solid var(--border); padding: 2px 8px; border-radius: 6px; overflow-wrap: anywhere; min-width: 0; }
 .kv b { color: var(--muted); font-weight: 600; }
 
 /* ---- Diff ---- */

@@ -10,6 +10,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"html"
 	"io"
 	"net/http"
 	"net/url"
@@ -196,8 +197,7 @@ func (c *Client) Search(ctx context.Context, query string, page, perPage int) (*
 		return nil, err
 	}
 	for i := range raw.Plugins {
-		raw.Plugins[i].AuthorName = stripTags(raw.Plugins[i].Author)
-		raw.Plugins[i].ShortDescription = stripTags(raw.Plugins[i].ShortDescription)
+		cleanPlugin(&raw.Plugins[i])
 	}
 	return &SearchResult{
 		Page:    raw.Info.Page,
@@ -226,9 +226,16 @@ func (c *Client) Info(ctx context.Context, slug string) (*Info, error) {
 	if info.Slug == "" {
 		return nil, fmt.Errorf("plugin %q not found", slug)
 	}
-	info.AuthorName = stripTags(info.Author)
-	info.ShortDescription = stripTags(info.ShortDescription)
+	cleanPlugin(&info.Plugin)
 	return &info, nil
+}
+
+// cleanPlugin strips tags and decodes HTML entities the WordPress.org API
+// returns in human-facing fields, so the UI can render them as plain text.
+func cleanPlugin(p *Plugin) {
+	p.Name = html.UnescapeString(p.Name)
+	p.AuthorName = html.UnescapeString(stripTags(p.Author))
+	p.ShortDescription = html.UnescapeString(stripTags(p.ShortDescription))
 }
 
 // SortedVersions returns released versions newest-first. "trunk" is excluded.
