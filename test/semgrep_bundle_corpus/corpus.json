@@ -1,0 +1,2536 @@
+{
+  "name": "wordpress-semgrep-bundle-corpus",
+  "description": "Regression corpus for run_semgrep_php_lowered_bundle.py built from notable WordPress plugin CVE targets.",
+  "cases": [
+    {
+      "case_id": "forminator-cve-2025-6463",
+      "rank": 1,
+      "plugin_name": "Forminator Forms – Contact Form, Payment Form & Custom Form Builder",
+      "slug": "forminator",
+      "fixture_dir": "forminator__1.44.2",
+      "install_version": "1.44.2",
+      "local_candidates": [
+        "forminator"
+      ],
+      "source_type": "wporg",
+      "amount_usd": 8100,
+      "cve_id": "CVE-2025-6463",
+      "cvss": "8.8",
+      "advisory_date": "2025-07-01",
+      "description": "Unauthenticated Arbitrary File Deletion Triggered via Administrator Form Submission Deletion",
+      "configs": [
+        "bugbounty-note/semgrep/file-upload.yaml"
+      ],
+      "direct_sink_ops": [
+        "delete"
+      ],
+      "max_passes": 2,
+      "coverage": {
+        "trace_source_strings_any": [
+          "filter_input( INPUT_POST, 'id', FILTER_VALIDATE_INT )",
+          "$entry = isset( $_GET['entry'] )",
+          "$ids = isset( $_GET['ids'] )"
+        ],
+        "finding_paths_any": [
+          "library/model/class-form-entry-model.php"
+        ],
+        "finding_rule_ids_any": [
+          "request-path-read-delete",
+          "wp-request-file-delete-without-cap-check"
+        ],
+        "trace_sink_locations_any": [
+          "library/model/class-form-entry-model.php:1264"
+        ]
+      },
+      "notes": "Direct phparser compare now matches the real delete sink at class-form-entry-model.php:1264 under delete-only coverage after final capability suppression was narrowed. This case requires max_passes=2 to keep the default compare bounded on the broad Forminator fixture."
+    },
+    {
+      "case_id": "post-smtp-cve-2025-11833",
+      "rank": 2,
+      "plugin_name": "Post SMTP – Complete SMTP Solution with Logs, Alerts, Backup SMTP & Mobile App",
+      "slug": "post-smtp",
+      "fixture_dir": "post-smtp__3.6.0",
+      "install_version": "3.6.0",
+      "local_candidates": [
+        "post-smtp"
+      ],
+      "source_type": "wporg",
+      "amount_usd": 7800,
+      "cve_id": "CVE-2025-11833",
+      "cvss": "9.8",
+      "advisory_date": "2025-11-01",
+      "description": "Missing Authorization to Account Takeover via Unauthenticated Email Log Disclosure",
+      "max_passes": 2,
+      "configs": [
+        "bugbounty-note/semgrep/privilege-escalation.yaml"
+      ],
+      "coverage": {
+        "source_strings_any": [
+          "function __construct()",
+          "original_message",
+          "get_log( $id, '' )"
+        ],
+        "finding_paths_any": [
+          "Postman/PostmanEmailLogs.php"
+        ],
+        "finding_rule_ids_any": [
+          "wp-request-record-read-to-output-without-cap-check"
+        ],
+        "trace_source_strings_any": [
+          "$_GET['log_id']",
+          "$_GET[ 'log_id' ]",
+          "$_GET[\"log_id\"]"
+        ],
+        "trace_sink_locations_any": [
+          "Postman/PostmanEmailLogs.php:72"
+        ]
+      },
+      "notes": "Direct phparser compare still matches PostmanEmailLogs.php:72 with max_passes=2; this keeps the Freemius-heavy option/output batch bounded on the broad plugin while preserving the real log_id -> get_log() -> output disclosure path."
+    },
+    {
+      "case_id": "layerslider-cve-2024-2879",
+      "rank": 3,
+      "plugin_name": "LayerSlider",
+      "slug": "layerslider",
+      "fixture_dir": "layerslider__7.10.0",
+      "install_version": "7.10.0",
+      "local_candidates": [
+        "layerslider",
+        "LayerSlider"
+      ],
+      "source_type": "premium",
+      "amount_usd": 5500,
+      "cve_id": "CVE-2024-2879",
+      "cvss": "9.8",
+      "advisory_date": "2024-04-29",
+      "description": "Unauthenticated SQL Injection",
+      "max_passes": 2,
+      "configs": [
+        "bugbounty-note/semgrep/sqli.yaml"
+      ],
+      "notes": "Commercial plugin. Add a manual fixture under test/semgrep_bundle_corpus/plugins/layerslider__7.10.0 to scan it."
+    },
+    {
+      "case_id": "givewp-cve-2024-5932",
+      "rank": 4,
+      "plugin_name": "GiveWP – Donation Plugin and Fundraising Platform",
+      "slug": "give",
+      "fixture_dir": "give__3.14.1",
+      "install_version": "3.14.1",
+      "local_candidates": [
+        "give",
+        "givewp"
+      ],
+      "source_type": "wporg",
+      "amount_usd": 4998,
+      "cve_id": "CVE-2024-5932",
+      "cvss": "10.0",
+      "advisory_date": "2024-07-01",
+      "description": "Unauthenticated PHP Object Injection to Remote Code Execution",
+      "configs": [
+        "bugbounty-note/semgrep/unsafe-use.yaml"
+      ],
+      "max_passes": 1,
+      "direct_sink_ops": [
+        "call"
+      ],
+      "coverage": {
+        "finding_paths_any": [
+          "includes/payments/backward-compatibility.php"
+        ],
+        "trace_sink_locations_any": [
+          "includes/payments/backward-compatibility.php:644"
+        ],
+        "finding_rule_ids_any": [
+          "unsafe-deserialization"
+        ]
+      }
+    },
+    {
+      "case_id": "acf-extended-cve-2025-13486",
+      "rank": 5,
+      "plugin_name": "Advanced Custom Fields: Extended",
+      "slug": "acf-extended",
+      "fixture_dir": "acf-extended__0.9.1.1",
+      "install_version": "0.9.1.1",
+      "local_candidates": [
+        "acf-extended"
+      ],
+      "source_type": "wporg",
+      "amount_usd": 4290,
+      "cve_id": "CVE-2025-13486",
+      "cvss": "9.8",
+      "advisory_date": "2025-12-02",
+      "description": "Unauthenticated Remote Code Execution in prepare_form",
+      "configs": [
+        "bugbounty-note/semgrep/unsafe-use.yaml"
+      ],
+      "coverage": {
+        "source_strings_any": [
+          "function prepare_form(",
+          "function acfe_delete_settings(",
+          "apply_filters('acfe/form/load_form'"
+        ],
+        "finding_paths_any": [
+          "includes/modules/form/module-form-front-render.php"
+        ],
+        "finding_rule_ids_any": [
+          "render-callback-execution"
+        ]
+      }
+    },
+    {
+      "case_id": "everest-forms-cve-2025-1128",
+      "rank": 6,
+      "plugin_name": "Everest Forms",
+      "slug": "everest-forms",
+      "fixture_dir": "everest-forms__3.0.9.4",
+      "install_version": "3.0.9.4",
+      "local_candidates": [
+        "everest-forms"
+      ],
+      "source_type": "wporg",
+      "amount_usd": 4290,
+      "cve_id": "CVE-2025-1128",
+      "cvss": "9.8",
+      "advisory_date": "2025-02-15",
+      "description": "Unauthenticated Arbitrary File Upload, Read, and Deletion",
+      "max_passes": 2,
+      "configs": [
+        "bugbounty-note/semgrep/file-upload.yaml"
+      ],
+      "coverage": {
+        "source_strings_any": [
+          "move_uploaded_file(",
+          "file_get_contents( $path )",
+          "unlink( $tmp_path )"
+        ],
+        "finding_paths_any": [
+          "includes/abstracts/class-evf-form-fields-upload.php"
+        ],
+        "finding_rule_ids_any": [
+          "file-download-upload",
+          "upload-api-surface"
+        ]
+      },
+      "notes": "Direct phparser compare still matches EVF_Form_Fields_Upload::remove_file at class-evf-form-fields-upload.php:117 with max_passes=2; this keeps the broad delete+open+read+write batch bounded while preserving the real unauthenticated tmp-file cleanup path."
+    },
+    {
+      "case_id": "gravity-forms-cve-2024-13377",
+      "rank": 7,
+      "plugin_name": "Gravity Forms",
+      "slug": "gravityforms",
+      "fixture_dir": "gravityforms__2.9.1.3",
+      "install_version": "2.9.1.3",
+      "local_candidates": [
+        "gravityforms",
+        "gravity-forms"
+      ],
+      "source_type": "premium",
+      "amount_usd": 4224,
+      "cve_id": "CVE-2024-13377",
+      "cvss": "7.2",
+      "advisory_date": "2025-01-18",
+      "description": "Unauthenticated Stored Cross-Site Scripting via alt parameter",
+      "configs": [
+        "bugbounty-note/semgrep/xss.yaml"
+      ],
+      "notes": "Commercial plugin. Add a manual fixture under test/semgrep_bundle_corpus/plugins/gravityforms__2.9.1.3 to scan it."
+    },
+    {
+      "case_id": "wp-reset-cve-2023-6799",
+      "rank": 8,
+      "plugin_name": "WP Reset",
+      "slug": "wp-reset",
+      "fixture_dir": "wp-reset__2.0",
+      "install_version": "2.0",
+      "local_candidates": [
+        "wp-reset"
+      ],
+      "source_type": "wporg",
+      "amount_usd": 4150,
+      "cve_id": "CVE-2023-6799",
+      "cvss": "5.9",
+      "advisory_date": "2024-02-15",
+      "description": "Sensitive Information Exposure due to Insufficient Randomness",
+      "configs": [
+        "bugbounty-note/semgrep/unsafe-use.yaml"
+      ],
+      "direct_sink_ops": [
+        "surface"
+      ],
+      "coverage": {
+        "finding_rule_ids_any": [
+          "predictable-security-identifier-surface"
+        ],
+        "trace_source_strings_any": [
+          "$uid = substr(str_shuffle(str_repeat('abcdefghijklmnopqrstuvwxyz', 6)), 0, 6);"
+        ],
+        "trace_sink_locations_any": [
+          "wp-reset.php:2655"
+        ]
+      },
+      "notes": "Direct phparser compare now matches the predictable export filename surface at wp-reset.php:2655 from the weak snapshot UID generator at wp-reset.php:2997. Fixed 2.01 is clean because export filenames switch to a separate 10-character identifier."
+    },
+    {
+      "case_id": "post-smtp-cve-2023-6875",
+      "rank": 9,
+      "plugin_name": "POST SMTP Mailer",
+      "slug": "post-smtp",
+      "fixture_dir": "post-smtp__2.8.7",
+      "install_version": "2.8.7",
+      "local_candidates": [
+        "post-smtp"
+      ],
+      "source_type": "wporg",
+      "amount_usd": 4125,
+      "cve_id": "CVE-2023-6875",
+      "cvss": "9.8",
+      "advisory_date": "2024-02-15",
+      "description": "Authorization Bypass via type connect-app API",
+      "max_passes": 2,
+      "configs": [
+        "bugbounty-note/semgrep/privilege-escalation.yaml"
+      ],
+      "direct_sink_ops": [
+        "action"
+      ],
+      "coverage": {
+        "source_strings_any": [
+          "function connect_app(",
+          "/connect-app"
+        ],
+        "finding_paths_any": [
+          "Postman/Mobile/includes/rest-api/v1/rest-api.php"
+        ],
+        "finding_rule_ids_any": [
+          "wp-request-sensitive-action-without-cap-check",
+          "wp-rest-public-data-disclosure-surface"
+        ]
+      },
+      "notes": "Direct phparser compare still matches the vulnerable connect_app REST action at Postman/Mobile/includes/rest-api/v1/rest-api.php:79 with max_passes=2. This keeps the broad Freemius-heavy action batch bounded while preserving the real auth_key header -> update_option( 'post_smtp_mobile_app_connection', $data ) authorization-bypass path."
+    },
+    {
+      "case_id": "cleantalk-cve-2024-10542",
+      "rank": 10,
+      "plugin_name": "Spam protection, Anti-Spam, FireWall by CleanTalk",
+      "slug": "cleantalk-spam-protect",
+      "fixture_dir": "cleantalk-spam-protect__6.43.2",
+      "install_version": "6.43.2",
+      "local_candidates": [
+        "cleantalk-spam-protect"
+      ],
+      "source_type": "wporg",
+      "amount_usd": 4095,
+      "cve_id": "CVE-2024-10542",
+      "cvss": "9.8",
+      "advisory_date": "2024-11-01",
+      "description": "Authorization Bypass via Reverse DNS Spoofing to Unauthenticated Arbitrary Plugin Installation",
+      "max_passes": 2,
+      "configs": [
+        "bugbounty-note/semgrep/privilege-escalation.yaml"
+      ],
+      "direct_sink_ops": [
+        "action"
+      ],
+      "coverage": {
+        "source_strings_any": [
+          "checkWithoutToken(",
+          "action__install_plugin",
+          "apbct_rc__install_plugin("
+        ],
+        "finding_paths_any": [
+          "cleantalk.php"
+        ],
+        "finding_rule_ids_any": [
+          "wp-request-sensitive-action-without-cap-check"
+        ]
+      },
+      "notes": "Direct phparser compare still matches the vulnerable unauthenticated plugin-install action in cleantalk.php:2410 with max_passes=2. This keeps the broad action batch bounded while preserving the real Get::get('plugin') -> apbct_rc__install_plugin() -> installer->install($download_link) path."
+    },
+    {
+      "case_id": "sureforms-cve-2025-6691",
+      "rank": 11,
+      "plugin_name": "SureForms – Drag and Drop Form Builder for WordPress",
+      "slug": "sureforms",
+      "fixture_dir": "sureforms__1.7.3",
+      "install_version": "1.7.3",
+      "local_candidates": [
+        "sureforms"
+      ],
+      "source_type": "wporg",
+      "amount_usd": 4050,
+      "cve_id": "CVE-2025-6691",
+      "cvss": "8.1",
+      "advisory_date": "2025-07-15",
+      "description": "Unauthenticated Arbitrary File Deletion Triggered via Administrator Submission Deletion",
+      "configs": [
+        "bugbounty-note/semgrep/file-upload.yaml"
+      ],
+      "direct_sink_ops": [
+        "delete"
+      ],
+      "coverage": {
+        "source_strings_any": [
+          "sanitize_by_field_type(",
+          "foreach ( $_FILES as $field => $file ) {"
+        ],
+        "finding_paths_any": [
+          "admin/views/entries-list-table.php"
+        ],
+        "finding_rule_ids_any": [
+          "wp-request-file-delete-without-cap-check"
+        ],
+        "trace_sink_locations_any": [
+          "admin/views/entries-list-table.php:684"
+        ]
+      }
+    },
+    {
+      "case_id": "w3-total-cache-cve-2024-12365",
+      "rank": 12,
+      "plugin_name": "W3 Total Cache",
+      "slug": "w3-total-cache",
+      "fixture_dir": "w3-total-cache__2.8.1",
+      "install_version": "2.8.1",
+      "local_candidates": [
+        "w3-total-cache"
+      ],
+      "source_type": "wporg",
+      "amount_usd": 3971,
+      "cve_id": "CVE-2024-12365",
+      "cvss": "8.5",
+      "advisory_date": "2024-12-15",
+      "description": "Authenticated (Subscriber+) Missing Authorization to Server-Side Request Forgery",
+      "configs": [
+        "bugbounty-note/semgrep/privilege-escalation.yaml"
+      ],
+      "direct_sink_ops": [
+        "action"
+      ],
+      "coverage": {
+        "source_strings_any": [
+          "account_api_key",
+          "origin_url",
+          "name",
+          "wp_remote_get("
+        ],
+        "finding_paths_any": [
+          "Cdn_BunnyCdn_Popup.php",
+          "Cdnfsd_BunnyCdn_Popup.php"
+        ],
+        "finding_rule_ids_any": [
+          "wp-request-sensitive-action-without-cap-check"
+        ],
+        "trace_sink_locations_any": [
+          "Cdn_BunnyCdn_Popup.php:99",
+          "Cdn_BunnyCdn_Popup.php:188",
+          "Cdnfsd_BunnyCdn_Popup.php:97",
+          "Cdnfsd_BunnyCdn_Popup.php:206"
+        ]
+      },
+      "notes": "Direct phparser compare still lands on the BunnyCDN popup SSRF/admin-action family, but representative action findings may retain account_api_key or name instead of origin_url within the same nonce-only popup handlers. Contract widened to the stable direct-engine shape while keeping sink lines pinned."
+    },
+    {
+      "case_id": "the-events-calendar-cve-2025-12197",
+      "rank": 13,
+      "plugin_name": "The Events Calendar",
+      "slug": "the-events-calendar",
+      "fixture_dir": "the-events-calendar__6.15.9",
+      "install_version": "6.15.9",
+      "local_candidates": [
+        "the-events-calendar"
+      ],
+      "source_type": "wporg",
+      "amount_usd": 3521,
+      "cve_id": "CVE-2025-12197",
+      "cvss": "7.5",
+      "advisory_date": "2025-11-01",
+      "description": "Unauthenticated SQL Injection via s",
+      "configs": [
+        "bugbounty-note/semgrep/sqli.yaml"
+      ],
+      "direct_sink_ops": [
+        "sql"
+      ],
+      "coverage": {
+        "source_strings_any": [
+          "redirect_posts_orderby("
+        ],
+        "finding_rule_ids_any": [
+          "tainted-sql-string"
+        ],
+        "trace_sink_locations_any": [
+          "src/Events/Custom_Tables/V1/WP_Query/Custom_Tables_Query.php:746"
+        ]
+      }
+    },
+    {
+      "case_id": "modern-events-calendar-cve-2024-5441",
+      "rank": 14,
+      "plugin_name": "Modern Events Calendar",
+      "slug": "modern-events-calendar-lite",
+      "fixture_dir": "modern-events-calendar-lite__7.11.0",
+      "install_version": "7.11.0",
+      "local_candidates": [
+        "modern-events-calendar-lite",
+        "modern-events-calendar"
+      ],
+      "source_type": "wporg_closed",
+      "amount_usd": 3094,
+      "cve_id": "CVE-2024-5441",
+      "cvss": "8.8",
+      "advisory_date": "2024-06-01",
+      "description": "Authenticated (Subscriber+) Arbitrary File Upload",
+      "configs": [
+        "bugbounty-note/semgrep/file-upload.yaml"
+      ],
+      "notes": "WordPress.org reports this plugin as closed. The downloader will try the exact archive first; if unavailable, add a manual fixture under test/semgrep_bundle_corpus/plugins/modern-events-calendar-lite__7.11.0."
+    },
+    {
+      "case_id": "backup-migration-cve-2023-6553",
+      "rank": 15,
+      "plugin_name": "Backup Migration",
+      "slug": "backup-backup",
+      "fixture_dir": "backup-backup__1.3.7",
+      "install_version": "1.3.7",
+      "local_candidates": [
+        "backup-backup",
+        "backup-migration"
+      ],
+      "source_type": "wporg",
+      "amount_usd": 2776,
+      "cve_id": "CVE-2023-6553",
+      "cvss": "9.8",
+      "advisory_date": "2024-02-15",
+      "description": "Unauthenticated Remote Code Execution",
+      "configs": [
+        "bugbounty-note/semgrep/path-transversal.yaml"
+      ],
+      "direct_sink_ops": [
+        "include"
+      ],
+      "coverage": {
+        "finding_rule_ids_any": [
+          "path-transversal"
+        ],
+        "trace_source_strings_any": [
+          "foreach ($_SERVER as $name => $value)"
+        ],
+        "trace_sink_locations_any": [
+          "includes/bypasser.php:646"
+        ]
+      },
+      "notes": "Direct phparser compare now matches the real restore/bootstrap include sink at includes/bypasser.php:646. The fixed 1.3.9 tree drops this include finding after summary-replayed path sinks honor PathSafe."
+    },
+    {
+      "case_id": "avada-cve-2024-1468",
+      "rank": 16,
+      "plugin_name": "Avada | Website Builder For WordPress & WooCommerce",
+      "slug": "avada",
+      "fixture_dir": "avada__7.11.4",
+      "install_version": "7.11.4",
+      "local_candidates": [
+        "avada"
+      ],
+      "source_type": "premium",
+      "amount_usd": 2751,
+      "cve_id": "CVE-2024-1468",
+      "cvss": "8.8",
+      "advisory_date": "2024-03-01",
+      "description": "Authenticated (Contributor+) Arbitrary File Upload",
+      "configs": [
+        "bugbounty-note/semgrep/file-upload.yaml"
+      ],
+      "notes": "Commercial theme/plugin bundle. Add a manual fixture under test/semgrep_bundle_corpus/plugins/avada__7.11.4 to scan it."
+    },
+    {
+      "case_id": "ultimate-member-cve-2025-0308",
+    "rank": 17,
+    "plugin_name": "Ultimate Member",
+    "slug": "ultimate-member",
+    "fixture_dir": "ultimate-member__2.9.1",
+    "install_version": "2.9.1",
+    "max_passes": 2,
+    "local_candidates": [
+      "ultimate-member"
+    ],
+      "source_type": "wporg",
+      "amount_usd": 2640,
+      "cve_id": "CVE-2025-0308",
+      "cvss": "7.5",
+      "advisory_date": "2025-01-18",
+      "description": "Unauthenticated SQL Injection",
+      "configs": [
+        "bugbounty-note/semgrep/sqli.yaml"
+      ],
+      "coverage": {
+        "finding_paths_any": [
+          "includes/core/class-member-directory-meta.php"
+        ],
+        "finding_rule_ids_any": [
+          "tainted-sql-string"
+        ],
+        "trace_source_strings_any": [
+          "ajax_get_members",
+          "$_POST['sorting']",
+          "$_POST[ $k ]",
+          "$_POST[ $k . '_to' ]"
+        ],
+        "trace_sink_locations_any": [
+          "includes/core/class-member-directory-meta.php:757",
+          "includes/core/class-member-directory-meta.php:782",
+          "includes/core/class-member-directory-meta.php:1072"
+        ]
+      }
+    },
+    {
+      "case_id": "gravity-forms-cve-2025-12352",
+      "rank": 18,
+      "plugin_name": "Gravity Forms",
+      "slug": "gravityforms",
+      "fixture_dir": "gravityforms__2.9.20",
+      "install_version": "2.9.20",
+      "local_candidates": [
+        "gravityforms",
+        "gravity-forms"
+      ],
+      "source_type": "premium",
+      "amount_usd": 2600,
+      "cve_id": "CVE-2025-12352",
+      "cvss": "9.8",
+      "advisory_date": "2025-11-01",
+      "description": "Unauthenticated Arbitrary File Upload via copy_post_image",
+      "configs": [
+        "bugbounty-note/semgrep/file-upload.yaml"
+      ],
+      "notes": "Commercial plugin. Add a manual fixture under test/semgrep_bundle_corpus/plugins/gravityforms__2.9.20 to scan it."
+    },
+    {
+      "case_id": "omgf-cve-2023-6600",
+      "rank": 19,
+      "plugin_name": "OMGF | GDPR/DSGVO Compliant, Faster Google Fonts. Easy.",
+      "slug": "host-webfonts-local",
+      "fixture_dir": "host-webfonts-local__5.7.9",
+      "install_version": "5.7.9",
+      "local_candidates": [
+        "host-webfonts-local",
+        "omgf"
+      ],
+      "source_type": "wporg",
+      "amount_usd": 2525,
+      "cve_id": "CVE-2023-6600",
+      "cvss": "8.6",
+      "advisory_date": "2024-01-03",
+      "description": "Missing Authorization to Unauthenticated Directory Deletion and Cross-Site Scripting",
+      "configs": [
+        "bugbounty-note/semgrep/path-transversal.yaml"
+      ],
+      "direct_sink_ops": [
+        "delete"
+      ],
+      "coverage": {
+        "finding_paths_any": [
+          "src/Admin/Actions.php"
+        ],
+        "finding_rule_ids_any": [
+          "request-path-read-delete"
+        ],
+        "trace_source_strings_any": [
+          "$updated_settings = $this->clean( $_POST );",
+          "clean_stale_cache"
+        ],
+        "trace_sink_locations_any": [
+          "src/Admin/Actions.php:204"
+        ]
+      },
+      "notes": "Promoted to direct phparser compare after canonical realpath guard handling: vulnerable 5.7.9 still hits clean_stale_cache(), while patched 5.8.0 drops the same delete path."
+    },
+    {
+      "case_id": "wpforms-cve-2024-11205",
+      "rank": 20,
+      "plugin_name": "WPForms",
+      "slug": "wpforms-lite",
+      "fixture_dir": "wpforms-lite__1.9.2.1",
+      "install_version": "1.9.2.1",
+      "local_candidates": [
+        "wpforms-lite",
+        "wpforms"
+      ],
+      "source_type": "wporg",
+      "amount_usd": 2376,
+      "cve_id": "CVE-2024-11205",
+      "cvss": "8.5",
+      "advisory_date": "2024-11-15",
+      "description": "Missing Authorization to Authenticated (Subscriber+) Payment Refund and Subscription Cancellation",
+      "max_passes": 2,
+      "configs": [
+        "bugbounty-note/semgrep/privilege-escalation.yaml"
+      ],
+      "direct_sink_ops": [
+        "action"
+      ],
+      "coverage": {
+        "source_strings_any": [
+          "UpdateHelpers::refund_payment",
+          "UpdateHelpers::cancel_subscription"
+        ],
+        "finding_paths_any": [
+          "src/Integrations/Stripe/Admin/Payments/SingleActionsHandler.php"
+        ],
+        "finding_rule_ids_any": [
+          "wp-ajax-financial-action-without-cap-check"
+        ]
+      },
+      "notes": "Direct phparser compare still matches the vulnerable Stripe payment refund AJAX path at src/Integrations/Stripe/Admin/Payments/SingleActionsHandler.php:134 with max_passes=2. This keeps the broad WPForms action batch bounded while preserving the real subscriber-reachable payment_id -> UpdateHelpers::refund_payment(...) financial-action path."
+    },
+    {
+      "case_id": "uncode-cve-2024-13681",
+      "rank": 21,
+      "plugin_name": "Uncode",
+      "slug": "uncode",
+      "fixture_dir": "uncode__2.9.1.6",
+      "install_version": "2.9.1.6",
+      "local_candidates": [
+        "uncode",
+        "Uncode"
+      ],
+      "source_type": "premium",
+      "amount_usd": 2376,
+      "cve_id": "CVE-2024-13681",
+      "cvss": "7.5",
+      "advisory_date": "2025-02-01",
+      "description": "Unauthenticated Arbitrary File Read in uncode_admin_get_oembed",
+      "configs": [
+        "bugbounty-note/semgrep/path-transversal.yaml"
+      ],
+      "notes": "Commercial theme. Add a manual fixture under test/semgrep_bundle_corpus/plugins/uncode__2.9.1.6 to scan it."
+    },
+    {
+      "case_id": "the-events-calendar-cve-2025-9807",
+      "rank": 22,
+      "plugin_name": "The Events Calendar",
+      "slug": "the-events-calendar",
+      "fixture_dir": "the-events-calendar__6.15.1",
+      "install_version": "6.15.1",
+      "local_candidates": [
+        "the-events-calendar"
+      ],
+      "source_type": "wporg",
+      "amount_usd": 2218,
+      "cve_id": "CVE-2025-9807",
+      "cvss": "7.5",
+      "advisory_date": "2025-09-15",
+      "description": "Unauthenticated SQL Injection",
+      "configs": [
+        "bugbounty-note/semgrep/sqli.yaml"
+      ],
+      "direct_sink_ops": [
+        "sql"
+      ],
+      "coverage": {
+        "source_strings_any": [
+          "redirect_posts_orderby("
+        ],
+        "finding_rule_ids_any": [
+          "tainted-sql-string"
+        ],
+        "trace_sink_locations_any": [
+          "src/Events/Custom_Tables/V1/WP_Query/Custom_Tables_Query.php:724"
+        ]
+      }
+    },
+    {
+      "case_id": "smart-slider-3-cve-2026-3098",
+      "rank": 23,
+      "plugin_name": "Smart Slider 3",
+      "slug": "smart-slider-3",
+      "fixture_dir": "smart-slider-3",
+      "install_version": "3.5.1.32",
+      "local_candidates": [
+        "smart-slider-3"
+      ],
+      "source_type": "wporg",
+      "amount_usd": 2208,
+      "cve_id": "CVE-2026-3098",
+      "cvss": "6.5",
+      "advisory_date": "2026-03-02",
+      "description": "Authenticated (Subscriber+) Arbitrary File Read via actionExportAll",
+      "configs": [
+        "bugbounty-note/semgrep/privilege-escalation.yaml"
+      ],
+      "direct_sink_ops": [
+        "action"
+      ],
+      "coverage": {
+        "source_strings_any": [
+          "actionExportAll()",
+          "Request::$REQUEST->getInt('currentGroupID', 0)"
+        ],
+        "finding_paths_any": [
+          "Nextend/SmartSlider3/Application/Admin/Sliders/ControllerSliders.php"
+        ],
+        "finding_rule_ids_any": [
+          "wp-request-sensitive-action-without-cap-check"
+        ],
+        "trace_sink_locations_any": [
+          "Nextend/SmartSlider3/Application/Admin/Sliders/ControllerSliders.php:82"
+        ]
+      },
+      "notes": "Local vulnerable 3.5.1.32 and fixed 3.5.1.34 source diff pins ControllerSliders::actionExportAll(). Current direct phparser action coverage matches the vulnerable export sink and the patched tree drops the finding once validateToken() and validatePermission('smartslider_edit') are lifted into final mixed admin-page/AJAX guard suppression."
+    },
+    {
+      "case_id": "wordpress-file-upload-cve-2024-11613",
+      "rank": 24,
+      "plugin_name": "WordPress File Upload",
+      "slug": "wp-file-upload",
+      "fixture_dir": "wp-file-upload__4.24.15",
+      "install_version": "4.24.15",
+      "local_candidates": [
+        "wp-file-upload",
+        "wordpress-file-upload"
+      ],
+      "source_type": "wporg",
+      "amount_usd": 2185,
+      "cve_id": "CVE-2024-11613",
+      "cvss": "9.8",
+      "advisory_date": "2025-05-01",
+      "description": "Unauthenticated Remote Code Execution, Arbitrary File Read, and Arbitrary File Deletion",
+      "configs": [
+        "bugbounty-note/semgrep/file-upload.yaml",
+        "bugbounty-note/semgrep/path-transversal.yaml"
+      ],
+      "direct_sink_ops": [
+        "delete"
+      ],
+      "coverage": {
+        "finding_paths_any": [
+          "wfu_file_downloader.php"
+        ],
+        "finding_rule_ids_any": [
+          "wp-request-file-delete-without-cap-check",
+          "request-path-read-delete"
+        ],
+        "source_strings_any": [
+          "$_GET['source']",
+          "$_POST['source']"
+        ],
+        "trace_sink_locations_any": [
+          "wfu_file_downloader.php:33"
+        ]
+      }
+    },
+    {
+      "case_id": "kali-forms-cve-2026-3584",
+      "rank": 25,
+      "plugin_name": "Kali Forms - WordPress Forms Made Easy",
+      "slug": "kali-forms",
+      "fixture_dir": "kali-forms",
+      "install_version": "2.4.9",
+      "local_candidates": [
+        "kali-forms"
+      ],
+      "source_type": "wporg",
+      "amount_usd": 2145,
+      "cve_id": "CVE-2026-3584",
+      "cvss": "9.8",
+      "advisory_date": "2026-03-16",
+      "description": "Unauthenticated Remote Code Execution via form_process",
+      "configs": [
+        "bugbounty-note/semgrep/unsafe-use.yaml"
+      ],
+      "direct_sink_ops": [
+        "call",
+        "open",
+        "read",
+        "include"
+      ],
+      "coverage": {
+        "finding_rule_ids_any": [
+          "render-callback-execution"
+        ],
+        "finding_paths_any": [
+          "Inc/Frontend/class-form-processor.php"
+        ],
+        "trace_source_strings_any": [
+          "$this->data = $this->prepare_post_data(stripslashes_deep($_POST['data']));"
+        ],
+        "trace_sink_locations_any": [
+          "Inc/Frontend/class-form-processor.php:697",
+          "Inc/Frontend/class-form-processor.php:700",
+          "Inc/Frontend/class-form-processor.php:704"
+        ]
+      },
+      "notes": "Direct phparser compare matches the unauthenticated form_process callback-execution path in 2.4.9 when the mixed call/open/read/include batch is used. Fixed 2.4.10 is clean after restore_internal_callable_placeholders() rebinds reserved internal callable placeholders instead of letting POST-driven placeholder keys replace them."
+    },
+    {
+      "case_id": "ai-engine-cve-2025-11749",
+      "rank": 26,
+      "plugin_name": "AI Engine",
+      "slug": "ai-engine",
+      "fixture_dir": "ai-engine__3.1.3",
+      "install_version": "3.1.3",
+      "local_candidates": [
+        "ai-engine"
+      ],
+      "source_type": "wporg",
+      "amount_usd": 2145,
+      "cve_id": "CVE-2025-11749",
+      "cvss": "9.8",
+      "advisory_date": "2025-11-01",
+      "description": "Unauthenticated Sensitive Information Exposure to Privilege Escalation",
+      "configs": [
+        "bugbounty-note/semgrep/privilege-escalation.yaml"
+      ],
+      "direct_sink_ops": [
+        "surface"
+      ],
+      "coverage": {
+        "finding_paths_any": [
+          "labs/mcp.php"
+        ],
+        "finding_rule_ids_any": [
+          "wp-rest-public-data-disclosure-surface"
+        ],
+        "trace_source_strings_any": [
+          "get_option( 'mcp_bearer_token' )",
+          "mcp_bearer_token"
+        ],
+        "trace_sink_locations_any": [
+          "labs/mcp.php:100",
+          "labs/mcp.php:108",
+          "labs/mcp.php:116"
+        ]
+      },
+      "notes": "Direct phparser compare now uses the generic surface sink family for public REST route disclosure where the route path embeds secret-derived data."
+    },
+    {
+      "case_id": "wpvivid-cve-2026-1357",
+      "rank": 27,
+      "plugin_name": "Migration, Backup, Staging",
+      "slug": "wpvivid-backuprestore",
+      "fixture_dir": "wpvivid-backuprestore__0.9.123",
+      "install_version": "0.9.123",
+      "local_candidates": [
+        "wpvivid-backuprestore"
+      ],
+      "source_type": "wporg",
+      "amount_usd": 2145,
+      "cve_id": "CVE-2026-1357",
+      "cvss": "9.8",
+      "advisory_date": "2026-02-02",
+      "description": "Unauthenticated Arbitrary File Upload",
+      "configs": [
+        "bugbounty-note/semgrep/file-upload.yaml"
+      ],
+      "direct_sink_ops": [
+        "write"
+      ],
+      "coverage": {
+        "finding_paths_any": [
+          "includes/customclass/class-wpvivid-send-to-site.php"
+        ],
+        "finding_rule_ids_any": [
+          "wp-request-file-upload-without-cap-check"
+        ],
+        "source_strings_any": [
+          "$body=base64_decode($_POST['wpvivid_content']);",
+          "$body = base64_decode($_POST['wpvivid_content']);"
+        ],
+        "trace_sink_locations_any": [
+          "includes/customclass/class-wpvivid-send-to-site.php:649",
+          "includes/customclass/class-wpvivid-send-to-site.php:666",
+          "includes/customclass/class-wpvivid-send-to-site.php:922"
+        ]
+      }
+    },
+    {
+      "case_id": "jupiterx-core-cve-2024-7772",
+      "rank": 28,
+      "plugin_name": "Jupiter X Core",
+      "slug": "jupiterx-core",
+      "fixture_dir": "jupiterx-core__4.6.5",
+      "install_version": "4.6.5",
+      "local_candidates": [
+        "jupiterx-core"
+      ],
+      "source_type": "wporg",
+      "amount_usd": 2145,
+      "cve_id": "CVE-2024-7772",
+      "cvss": "9.8",
+      "advisory_date": "2024-08-15",
+      "description": "Unauthenticated Arbitrary File Upload",
+      "configs": [
+        "bugbounty-note/semgrep/file-upload.yaml"
+      ],
+      "direct_sink_ops": [
+        "write"
+      ],
+      "coverage": {
+        "source_strings_any": [
+          "add_action( 'wp_ajax_nopriv_raven_form_frontend', [ $this, 'handle_frontend' ] );",
+          "move_uploaded_file( $file['tmp_name'], $new_file )"
+        ],
+        "finding_paths_any": [
+          "includes/extensions/raven/includes/modules/forms/classes/ajax-handler.php"
+        ],
+        "finding_rule_ids_any": [
+          "file-download-upload"
+        ]
+      }
+    },
+    {
+      "case_id": "ultimate-member-cve-2024-1071",
+      "rank": 29,
+      "plugin_name": "Ultimate Member – User Profile, Registration, Login, Member Directory, Content Restriction & Membership Plugin",
+      "slug": "ultimate-member",
+      "fixture_dir": "ultimate-member__2.8.2",
+      "install_version": "2.8.2",
+      "local_candidates": [
+        "ultimate-member"
+      ],
+      "source_type": "wporg",
+      "amount_usd": 2063,
+      "cve_id": "CVE-2024-1071",
+      "cvss": "9.8",
+      "advisory_date": "2024-02-15",
+      "description": "Unauthenticated SQL Injection",
+      "configs": [
+        "bugbounty-note/semgrep/sqli.yaml"
+      ],
+      "direct_sink_ops": [
+        "sql"
+      ],
+      "max_passes": 2,
+      "coverage": {
+        "source_strings_any": [
+          "ajax_get_members(",
+          "$_POST['sorting']",
+          "handle_filter_query("
+        ],
+        "finding_paths_any": [
+          "includes/core/class-member-directory-meta.php"
+        ],
+        "finding_rule_ids_any": [
+          "tainted-sql-string"
+        ],
+        "trace_sink_locations_any": [
+          "includes/core/class-member-directory-meta.php:859"
+        ]
+      }
+    },
+    {
+      "case_id": "user-registration-cve-2024-2417",
+      "rank": 30,
+      "plugin_name": "User Registration – Custom Registration Form, Login Form, and User Profile WordPress Plugin",
+      "slug": "user-registration",
+      "fixture_dir": "user-registration__3.1.5",
+      "install_version": "3.1.5",
+      "local_candidates": [
+        "user-registration"
+      ],
+      "source_type": "wporg",
+      "amount_usd": 2063,
+      "cve_id": "CVE-2024-2417",
+      "cvss": "8.8",
+      "advisory_date": "2024-03-15",
+      "description": "Missing Authorization to Authenticated (Subscriber+) Privilege Escalation",
+      "max_passes": 2,
+      "configs": [
+        "bugbounty-note/semgrep/privilege-escalation.yaml"
+      ],
+      "direct_sink_ops": [
+        "action"
+      ],
+      "coverage": {
+        "source_strings_any": [
+          "form_save_action(",
+          "$_POST['data']['form_name']",
+          "$_POST['data']['form_row_ids']",
+          "ur_update_form_settings("
+        ],
+        "finding_paths_any": [
+          "includes/class-ur-ajax.php"
+        ],
+        "finding_rule_ids_any": [
+          "wp-request-sensitive-action-without-cap-check"
+        ],
+        "trace_sink_locations_any": [
+          "includes/class-ur-ajax.php:879",
+          "includes/class-ur-ajax.php:888"
+        ]
+      },
+      "notes": "Direct phparser compare still matches the vulnerable form_save_action AJAX path in includes/class-ur-ajax.php:879 with max_passes=2. This keeps the broad User Registration action batch bounded while preserving the real subscriber-reachable form_name/form_row_ids -> wp_insert_post( wp_slash( $post_data ) ) privilege-escalation path."
+    },
+    {
+      "case_id": "better-search-replace-cve-2023-6933",
+      "rank": 31,
+      "plugin_name": "Better Search Replace",
+      "slug": "better-search-replace",
+      "fixture_dir": "better-search-replace__1.4.4",
+      "install_version": "1.4.4",
+      "local_candidates": [
+        "better-search-replace"
+      ],
+      "source_type": "wporg",
+      "amount_usd": 2000,
+      "cve_id": "CVE-2023-6933",
+      "cvss": "8.8",
+      "advisory_date": "2024-02-15",
+      "description": "Unauthenticated PHP Object Injection",
+      "configs": [
+        "bugbounty-note/semgrep/unsafe-use.yaml"
+      ],
+      "direct_sink_ops": [
+        "call"
+      ],
+      "coverage": {
+        "source_strings_any": [
+          "SELECT * FROM `$table` LIMIT $start, $end",
+          "$this->wpdb->get_results(",
+          "process_search_replace("
+        ],
+        "finding_paths_any": [
+          "includes/class-bsr-db.php"
+        ],
+        "finding_rule_ids_any": [
+          "unsafe-deserialization"
+        ],
+        "trace_sink_locations_any": [
+          "includes/class-bsr-db.php:448"
+        ]
+      }
+    },
+    {
+      "case_id": "google-reviews-cve-2025-12510",
+      "rank": 32,
+      "plugin_name": "Widgets for Google Reviews",
+      "slug": "wp-reviews-plugin-for-google",
+      "fixture_dir": "wp-reviews-plugin-for-google__13.2.4",
+      "install_version": "13.2.4",
+      "local_candidates": [
+        "wp-reviews-plugin-for-google",
+        "widgets-for-google-reviews"
+      ],
+      "source_type": "wporg",
+      "amount_usd": 1920,
+      "cve_id": "CVE-2025-12510",
+      "cvss": "7.2",
+      "advisory_date": "2025-11-01",
+      "description": "Unauthenticated Stored Cross-Site Scripting via Google Reviews",
+      "configs": [
+        "bugbounty-note/semgrep/xss.yaml"
+      ],
+      "direct_sink_ops": [
+        "output"
+      ],
+      "coverage": {
+        "finding_paths_any": [
+          "trustindex-plugin.class.php"
+        ],
+        "finding_rule_ids_any": [
+          "wp-stored-xss-persistent-read-to-output"
+        ],
+        "trace_source_strings_any": [
+          "$wpdb->get_results($wpdb->prepare('SELECT *, rating AS original_rating",
+          "public function getReviewHtml($review)"
+        ],
+        "trace_sink_locations_any": [
+          "trustindex-plugin.class.php:909"
+        ]
+      }
+    },
+    {
+      "case_id": "learnpress-cve-2023-6634",
+      "rank": 33,
+      "plugin_name": "LearnPress",
+      "slug": "learnpress",
+      "fixture_dir": "learnpress__4.2.5.7",
+      "install_version": "4.2.5.7",
+      "local_candidates": [
+        "learnpress"
+      ],
+      "source_type": "wporg",
+      "amount_usd": 1900,
+      "cve_id": "CVE-2023-6634",
+      "cvss": "8.1",
+      "advisory_date": "2024-02-15",
+      "description": "Command Injection",
+      "configs": [
+        "bugbounty-note/semgrep/unsafe-use.yaml"
+      ],
+      "direct_sink_ops": [
+        "call"
+      ],
+      "coverage": {
+        "finding_paths_any": [
+          "inc/rest-api/v1/frontend/class-lp-rest-ajax-controller.php"
+        ],
+        "finding_rule_ids_any": [
+          "unsafe-use"
+        ],
+        "source_strings_any": [
+          "$params = $request->get_params();"
+        ],
+        "trace_sink_locations_any": [
+          "inc/rest-api/v1/frontend/class-lp-rest-ajax-controller.php:69"
+        ]
+      }
+    },
+    {
+      "case_id": "cookie-information-cve-2023-6700",
+      "rank": 34,
+      "plugin_name": "Cookie Information | Free GDPR Consent Solution",
+      "slug": "wp-gdpr-compliance",
+      "fixture_dir": "wp-gdpr-compliance__2.0.22",
+      "install_version": "2.0.22",
+      "local_candidates": [
+        "wp-gdpr-compliance",
+        "cookie-information-consent-solution"
+      ],
+      "source_type": "wporg",
+      "amount_usd": 1900,
+      "cve_id": "CVE-2023-6700",
+      "cvss": "8.8",
+      "advisory_date": "2024-01-03",
+      "description": "Authenticated (Subscriber+) Arbitrary Options Update",
+      "configs": [
+        "bugbounty-note/semgrep/privilege-escalation.yaml"
+      ],
+      "direct_sink_ops": [
+        "action"
+      ],
+      "coverage": {
+        "finding_rule_ids_any": [
+          "wp-request-sensitive-action-without-cap-check"
+        ],
+        "finding_paths_any": [
+          "WordPress/Ajax/UpdateIntegration.php"
+        ],
+        "trace_sink_locations_any": [
+          "WordPress/Ajax/UpdateIntegration.php:70",
+          "WordPress/Ajax/UpdateIntegration.php:84",
+          "WordPress/Ajax/UpdateIntegration.php:91",
+          "WordPress/Ajax/UpdateIntegration.php:96"
+        ],
+        "trace_source_strings_any": [
+          "$data = ! empty( $_POST['data'] ) ? wp_unslash( $_POST['data'] ) : false;",
+          "wp_ajax_wpgdprc_update_integration",
+          "wp_unslash( $_POST['data'] )"
+        ]
+      }
+    },
+    {
+      "case_id": "backup-migration-cve-2023-6972",
+      "rank": 35,
+      "plugin_name": "Backup Migration",
+      "slug": "backup-backup",
+      "fixture_dir": "backup-backup__1.3.9",
+      "install_version": "1.3.9",
+      "local_candidates": [
+        "backup-backup"
+      ],
+      "source_type": "wporg",
+      "amount_usd": 1834,
+      "cve_id": "CVE-2023-6972",
+      "cvss": "9.8",
+      "advisory_date": "2024-01-05",
+      "description": "Unauthenticated Path Traversal to Arbitrary File Deletion",
+      "configs": [
+        "bugbounty-note/semgrep/path-transversal.yaml"
+      ],
+      "direct_sink_ops": [
+        "delete"
+      ],
+      "coverage": {
+        "finding_paths_any": [
+          "includes/bypasser.php"
+        ],
+        "finding_rule_ids_any": [
+          "wp-request-file-delete-without-cap-check"
+        ],
+        "trace_sink_locations_any": [
+          "includes/bypasser.php:231",
+          "includes/bypasser.php:246",
+          "includes/bypasser.php:318"
+        ],
+        "trace_source_strings_any": [
+          "foreach ($_SERVER as $name => $value)"
+        ]
+      }
+    },
+    {
+      "case_id": "code-snippets-cve-2025-13035",
+      "rank": 36,
+      "plugin_name": "Code Snippets",
+      "slug": "code-snippets",
+      "fixture_dir": "code-snippets__3.9.1",
+      "install_version": "3.9.1",
+      "local_candidates": [
+        "code-snippets"
+      ],
+      "source_type": "wporg",
+      "amount_usd": 1802,
+      "cve_id": "CVE-2025-13035",
+      "cvss": "8.0",
+      "advisory_date": "2025-11-16",
+      "description": "Authenticated (Contributor+) PHP Code Injection via extract() and PHP Filter Chains",
+      "configs": [
+        "bugbounty-note/semgrep/unsafe-use.yaml"
+      ],
+      "direct_sink_ops": [
+        "include"
+      ],
+      "coverage": {
+        "source_strings_any": [
+          "render_content_shortcode",
+          "$content = $this->evaluate_shortcode_content( $snippet, $original_atts );"
+        ],
+        "finding_paths_any": [
+          "php/front-end/class-front-end.php"
+        ],
+        "finding_rule_ids_any": [
+          "path-transversal"
+        ],
+        "trace_sink_locations_any": [
+          "php/front-end/class-front-end.php:296"
+        ]
+      }
+    },
+    {
+      "case_id": "starter-templates-cve-2025-13065",
+      "rank": 37,
+      "plugin_name": "Starter Templates",
+      "slug": "astra-sites",
+      "fixture_dir": "astra-sites__4.4.41",
+      "install_version": "4.4.41",
+      "local_candidates": [
+        "astra-sites",
+        "starter-templates"
+      ],
+      "source_type": "wporg",
+      "amount_usd": 1802,
+      "cve_id": "CVE-2025-13065",
+      "cvss": "8.8",
+      "advisory_date": "2025-11-16",
+      "description": "Authenticated (Author+) Arbitrary File Upload via WXR Upload Bypass",
+      "configs": [
+        "bugbounty-note/semgrep/file-upload.yaml"
+      ],
+      "direct_sink_ops": [
+        "surface"
+      ],
+      "coverage": {
+        "source_strings_any": [
+          "real_mime_types("
+        ],
+        "finding_paths_any": [
+          "inc/lib/starter-templates-importer/importer/wxr-importer/st-wxr-importer.php"
+        ],
+        "finding_rule_ids_any": [
+          "upload-api-surface"
+        ],
+        "trace_sink_locations_any": [
+          "inc/lib/starter-templates-importer/importer/wxr-importer/st-wxr-importer.php:522",
+          "inc/lib/starter-templates-importer/importer/wxr-importer/st-wxr-importer.php:523",
+          "inc/lib/starter-templates-importer/importer/wxr-importer/st-wxr-importer.php:528",
+          "inc/lib/starter-templates-importer/importer/wxr-importer/st-wxr-importer.php:529"
+        ]
+      }
+    },
+    {
+      "case_id": "avada-builder-cve-2024-13345",
+      "rank": 38,
+      "plugin_name": "Avada Builder",
+      "slug": "avada-builder",
+      "fixture_dir": "avada-builder__3.11.13",
+      "install_version": "3.11.13",
+      "local_candidates": [
+        "fusion-builder",
+        "avada-builder",
+        "Avada-Builder"
+      ],
+      "source_type": "premium",
+      "amount_usd": 1800,
+      "cve_id": "CVE-2024-13345",
+      "cvss": "7.3",
+      "advisory_date": "2025-01-18",
+      "description": "Unauthenticated Arbitrary Shortcode Execution",
+      "configs": [
+        "bugbounty-note/semgrep/unsafe-use.yaml"
+      ],
+      "notes": "Commercial plugin. Add a manual fixture under test/semgrep_bundle_corpus/plugins/avada-builder__3.11.13 to scan it."
+    },
+    {
+      "case_id": "avada-theme-cve-2024-13346",
+      "rank": 39,
+      "plugin_name": "Avada Theme",
+      "slug": "avada-theme",
+      "fixture_dir": "avada-theme__7.11.13",
+      "install_version": "7.11.13",
+      "local_candidates": [
+        "Avada",
+        "avada-theme",
+        "avada"
+      ],
+      "source_type": "premium",
+      "amount_usd": 1800,
+      "cve_id": "CVE-2024-13346",
+      "cvss": "7.3",
+      "advisory_date": "2025-01-18",
+      "description": "Unauthenticated Arbitrary Shortcode Execution",
+      "configs": [
+        "bugbounty-note/semgrep/unsafe-use.yaml"
+      ],
+      "notes": "Commercial theme. Add a manual fixture under test/semgrep_bundle_corpus/plugins/avada-theme__7.11.13 to scan it."
+    },
+    {
+      "case_id": "uncode-cve-2024-13691",
+      "rank": 40,
+      "plugin_name": "Uncode",
+      "slug": "uncode",
+      "fixture_dir": "uncode__2.9.1.6",
+      "install_version": "2.9.1.6",
+      "local_candidates": [
+        "uncode",
+        "Uncode"
+      ],
+      "source_type": "premium",
+      "amount_usd": 1782,
+      "cve_id": "CVE-2024-13691",
+      "cvss": "6.5",
+      "advisory_date": "2025-02-01",
+      "description": "Authenticated (Subscriber+) Arbitrary File Read in uncode_recordMedia",
+      "configs": [
+        "bugbounty-note/semgrep/path-transversal.yaml"
+      ],
+      "notes": "Commercial theme. Add a manual fixture under test/semgrep_bundle_corpus/plugins/uncode__2.9.1.6 to scan it."
+    },
+    {
+      "case_id": "fluent-forms-cve-2025-9260",
+      "rank": 41,
+      "plugin_name": "Fluent Forms – Customizable Contact Forms, Survey, Quiz, & Conversational Form Builder",
+      "slug": "fluentform",
+      "fixture_dir": "fluentform__6.1.1",
+      "install_version": "6.1.1",
+      "local_candidates": [
+        "fluentform",
+        "fluent-forms"
+      ],
+      "source_type": "wporg",
+      "amount_usd": 1729,
+      "cve_id": "CVE-2025-9260",
+      "cvss": "6.5",
+      "advisory_date": "2025-09-01",
+      "description": "Authenticated (Subscriber+) PHP Object Injection To Arbitrary File Read",
+      "configs": [
+        "bugbounty-note/semgrep/unsafe-use.yaml"
+      ],
+      "direct_sink_ops": [
+        "call"
+      ],
+      "coverage": {
+        "finding_paths_any": [
+          "app/Services/Form/FormValidationService.php"
+        ],
+        "finding_rule_ids_any": [
+          "unsafe-deserialization"
+        ],
+        "trace_source_strings_any": [
+          "wp_remote_get(\"http://www.geoplugin.net/php.gp?ip={$ip}\")",
+          "$body = unserialize($body);"
+        ],
+        "trace_sink_locations_any": [
+          "app/Services/Form/FormValidationService.php:730"
+        ]
+      },
+      "notes": "Direct phparser compare matches the request-derived geolocation helper chain in getIpBasedOnCountry() when app-owned request getters like getIp() are modeled as request sources. The vulnerable sink is unserialize() at app/Services/Form/FormValidationService.php:730 after wp_remote_get() fetches the PHP-serialized response."
+    },
+    {
+      "case_id": "cleantalk-security-cve-2024-13365",
+      "rank": 42,
+      "plugin_name": "Security & Malware scan by CleanTalk",
+      "slug": "security-malware-firewall",
+      "fixture_dir": "security-malware-firewall__2.149",
+      "install_version": "2.149",
+      "local_candidates": [
+        "security-malware-firewall"
+      ],
+      "source_type": "wporg",
+      "amount_usd": 1716,
+      "cve_id": "CVE-2024-13365",
+      "cvss": "9.8",
+      "advisory_date": "2025-01-21",
+      "description": "Unauthenticated Arbitrary File Upload",
+      "configs": [
+        "bugbounty-note/semgrep/file-upload.yaml"
+      ],
+      "direct_sink_ops": [
+        "write"
+      ],
+      "coverage": {
+        "finding_rule_ids_any": [
+          "wp-request-file-upload-without-cap-check"
+        ],
+        "finding_paths_any": [
+          "lib/CleantalkSP/SpbctWP/Firewall/UploadChecker.php"
+        ],
+        "trace_source_strings_any": [
+          "$result = $this->runCheckForFilesGlobalVariable($_FILES);",
+          "$_FILES"
+        ],
+        "trace_sink_strings_any": [
+          "unzip_file($archive_path, $destination);"
+        ],
+        "trace_sink_locations_any": [
+          "lib/CleantalkSP/SpbctWP/Firewall/UploadChecker.php:397"
+        ]
+      }
+    },
+    {
+      "case_id": "jupiterx-core-cve-2024-7781",
+      "rank": 43,
+      "plugin_name": "Jupiter X Core",
+      "slug": "jupiterx-core",
+      "fixture_dir": "jupiterx-core__4.7.5",
+      "install_version": "4.7.5",
+      "local_candidates": [
+        "jupiterx-core",
+        "jupiterx"
+      ],
+      "source_type": "wporg",
+      "amount_usd": 1690,
+      "cve_id": "CVE-2024-7781",
+      "cvss": "8.1",
+      "advisory_date": "2024-08-15",
+      "description": "Limited Unauthenticated Authentication Bypass to Account Takeover",
+    "configs": [
+      "bugbounty-note/semgrep/privilege-escalation.yaml"
+    ],
+    "direct_sink_ops": [
+      "surface"
+    ],
+    "coverage": {
+      "finding_paths_any": [
+        "includes/extensions/raven/includes/modules/forms/classes/social-login-handler/google.php",
+        "includes/extensions/raven/includes/modules/forms/classes/social-login-handler/facebook.php"
+      ],
+      "finding_rule_ids_any": [
+        "wp-issued-auth-link-surface"
+      ],
+      "trace_source_strings_any": [
+        "'login_url' => $unique_login_url,"
+      ],
+      "trace_sink_locations_any": [
+        "includes/extensions/raven/includes/modules/forms/classes/social-login-handler/google.php:150",
+        "includes/extensions/raven/includes/modules/forms/classes/social-login-handler/facebook.php:274"
+      ]
+    },
+    "notes": "Direct phparser compare now uses the generic issued-auth-link surface model. Vulnerable 4.7.5 returns provider login URLs from the Raven social-login AJAX handlers and later consumes those public query parameters to call wp_set_auth_cookie() in the same handler family. Current 4.14.1 is clean on focused surface scans because the alternate-path auth-link flow is removed and the login happens only inline after provider validation."
+  },
+    {
+      "case_id": "husky-cve-2025-1661",
+      "rank": 44,
+      "plugin_name": "HUSKY - Products Filter Professional for WooCommerce",
+      "slug": "woocommerce-products-filter",
+      "fixture_dir": "woocommerce-products-filter__1.3.6.5",
+      "install_version": "1.3.6.5",
+      "local_candidates": [
+        "woocommerce-products-filter",
+        "woof",
+        "woocommerce-products-filter-pro"
+      ],
+      "source_type": "wporg",
+      "amount_usd": 1651,
+      "cve_id": "CVE-2025-1661",
+      "cvss": "9.8",
+      "advisory_date": "2025-03-01",
+      "description": "Unauthenticated Local File Inclusion",
+      "configs": [
+        "bugbounty-note/semgrep/path-transversal.yaml"
+      ],
+      "notes": "The real public patch is revision-backed, not zip-backed. NVD and Wordfence point to ext/by_text/index.php in the unauthenticated woof_text_search AJAX path, and WP.org changeset 3249621 inserts `$template = sanitize_key($template);` immediately before the template path is built. Later WP.org readmes explicitly list a separate 1.3.6.6 Wordfence fix, but public 1.3.6.5 and 1.3.6.6 zip or tag materialization is still inconsistent through normal downloads. Current 1.3.8.1 include scans still hit a different helper include at ext/by_text/index.php:569, not the template branch itself. Keep metadata-only until a durable vulnerable fixture is materialized or a revision-backed file-slice contract is added."
+    },
+    {
+      "case_id": "wpml-cve-2024-6386",
+      "rank": 45,
+      "plugin_name": "WPML Multilingual CMS",
+      "slug": "sitepress-multilingual-cms",
+      "fixture_dir": "sitepress-multilingual-cms__4.6.12",
+      "install_version": "4.6.12",
+      "local_candidates": [
+        "sitepress-multilingual-cms",
+        "wpml",
+        "wpml-multilingual-cms"
+      ],
+      "source_type": "premium",
+      "amount_usd": 1639,
+      "cve_id": "CVE-2024-6386",
+      "cvss": "9.9",
+      "advisory_date": "2024-07-01",
+      "description": "Authenticated (Contributor+) Remote Code Execution via Twig Server-Side Template Injection",
+      "configs": [
+        "bugbounty-note/semgrep/unsafe-use.yaml"
+      ],
+      "notes": "Commercial plugin. Add a manual fixture under test/semgrep_bundle_corpus/plugins/sitepress-multilingual-cms__4.6.12 to scan it."
+    },
+    {
+      "case_id": "wpdiscuz-cve-2024-9488",
+      "rank": 46,
+      "plugin_name": "Comments - wpDiscuz",
+      "slug": "wpdiscuz",
+      "fixture_dir": "wpdiscuz__7.6.24",
+      "install_version": "7.6.24",
+      "local_candidates": [
+        "wpdiscuz"
+      ],
+      "source_type": "wporg",
+      "amount_usd": 1639,
+      "cve_id": "CVE-2024-9488",
+      "cvss": "9.8",
+      "advisory_date": "2024-10-15",
+      "description": "Authentication Bypass via WordPress.com OAuth Provider",
+      "configs": [
+        "bugbounty-note/semgrep/privilege-escalation.yaml"
+      ],
+      "direct_sink_ops": [
+        "surface"
+      ],
+      "coverage": {
+        "finding_paths_any": [
+          "forms/wpdFormAttr/Login/SocialLogin.php"
+        ],
+        "finding_rule_ids_any": [
+          "wp-public-oauth-callback-auth-surface"
+        ],
+        "trace_source_strings_any": [
+          "$provider = Sanitizer::sanitize(INPUT_POST, \"provider\", \"FILTER_SANITIZE_STRING\");",
+          "$provider = Sanitizer::sanitize(INPUT_GET, \"provider\", \"FILTER_SANITIZE_STRING\") ? Sanitizer::sanitize(INPUT_GET, \"provider\", \"FILTER_SANITIZE_STRING\") : Sanitizer::sanitize(INPUT_POST, \"provider\", \"FILTER_SANITIZE_STRING\");"
+        ],
+        "trace_sink_locations_any": [
+          "forms/wpdFormAttr/Login/SocialLogin.php:1548"
+        ]
+      },
+      "notes": "Direct phparser compare now matches the public WordPress.com social-login callback surface in 7.6.24 at setCurrentUser()->wp_set_auth_cookie(). The generic fix combined a public OAuth callback auth-surface model with parser recovery for qualified namespaces and recoverable interpolated-array-key parse errors so SocialLogin.php stays analyzable. Current 7.6.46 is clean after adding users_can_register guards to login() and loginCallBack()."
+    },
+    {
+      "case_id": "user-registration-cve-2026-1492",
+      "rank": 47,
+      "plugin_name": "User Registration & Membership",
+      "slug": "user-registration",
+      "fixture_dir": "user-registration__5.1.2",
+      "install_version": "5.1.2",
+      "local_candidates": [
+        "user-registration"
+      ],
+      "source_type": "wporg",
+      "amount_usd": 1609,
+      "cve_id": "CVE-2026-1492",
+      "cvss": "9.8",
+      "advisory_date": "2026-02-02",
+      "description": "Unauthenticated Privilege Escalation via Membership Registration",
+      "configs": [
+        "bugbounty-note/semgrep/privilege-escalation.yaml"
+      ],
+      "direct_sink_ops": [
+        "call"
+      ],
+      "max_passes": 2,
+      "coverage": {
+        "trace_source_strings_any": [
+          "$_POST['members_data']",
+          "json_decode( wp_unslash( $_POST['members_data'] ), true )"
+        ],
+        "finding_paths_any": [
+          "modules/membership/includes/Admin/Services/MembersService.php"
+        ],
+        "finding_rule_ids_any": [
+          "wp-request-tainted-privilege-mutation"
+        ],
+        "trace_sink_locations_any": [
+          "modules/membership/includes/Admin/Services/MembersService.php:217"
+        ]
+      },
+      "notes": "Direct phparser compare now matches the real register_member() privilege-mutation path at MembersService.php:217 from AJAX.php:121 on vulnerable 5.1.2. Current trees drop the frontend register_member() finding after the frontend role overwrite fix, although a separate upgrade_membership() privilege-mutation candidate still remains in the membership module and should be treated as follow-up precision work, not this CVE contract."
+    },
+    {
+      "case_id": "ninja-forms-cve-2025-11924",
+      "rank": 48,
+      "plugin_name": "Ninja Forms - The Contact Form Builder That Grows With You",
+      "slug": "ninja-forms",
+      "fixture_dir": "ninja-forms__3.13.2",
+      "install_version": "3.13.2",
+      "local_candidates": [
+        "ninja-forms"
+      ],
+      "source_type": "wporg",
+      "amount_usd": 1600,
+      "cve_id": "CVE-2025-11924",
+      "cvss": "7.5",
+      "advisory_date": "2025-11-01",
+      "description": "Insecure Direct Object Reference to Unauthenticated Sensitive Information Exposure via Unscoped Bearer Token",
+      "configs": [
+        "bugbounty-note/semgrep/privilege-escalation.yaml"
+      ],
+      "direct_sink_ops": [
+        "surface"
+      ],
+      "coverage": {
+        "finding_paths_any": [
+          "blocks/bootstrap.php"
+        ],
+        "finding_rule_ids_any": [
+          "wp-rest-token-issuance-surface"
+        ],
+        "trace_source_strings_any": [
+          "$formIds = $request->get_param('formIds');"
+        ],
+        "trace_sink_locations_any": [
+          "blocks/bootstrap.php:310"
+        ]
+      },
+      "notes": "Direct phparser compare now matches the token refresh route in vulnerable 3.13.2 at blocks/bootstrap.php:310 from request-controlled formIds at blocks/bootstrap.php:281. The generic REST token issuance surface model keeps the vulnerable refresh endpoint and current 3.14.1 is clean because the callback now requires a prior token, validates its signature, and restricts refresh to an already-authorized form."
+    },
+    {
+      "case_id": "tutor-lms-pro-cve-2024-4351",
+      "rank": 49,
+      "plugin_name": "Tutor LMS Pro",
+      "slug": "tutor-pro",
+      "fixture_dir": "tutor-pro__2.7.0",
+      "install_version": "2.7.0",
+      "local_candidates": [
+        "tutor-pro",
+        "tutor-lms-pro",
+        "tutor"
+      ],
+      "source_type": "premium",
+      "amount_usd": 1563,
+      "cve_id": "CVE-2024-4351",
+      "cvss": "8.8",
+      "advisory_date": "2024-05-01",
+      "description": "Missing Authorization to Privilege Escalation",
+      "configs": [
+        "bugbounty-note/semgrep/privilege-escalation.yaml"
+      ],
+      "notes": "Commercial plugin. Add a manual fixture under test/semgrep_bundle_corpus/plugins/tutor-pro__2.7.0 to scan it."
+    },
+    {
+      "case_id": "cfdb7-cve-2025-7384",
+      "rank": 50,
+      "plugin_name": "Database for Contact Form 7, WPforms, Elementor forms",
+      "slug": "contact-form-entries",
+      "fixture_dir": "contact-form-entries__1.4.3",
+      "install_version": "1.4.3",
+      "local_candidates": [
+        "contact-form-entries"
+      ],
+      "source_type": "wporg",
+      "amount_usd": 1560,
+      "cve_id": "CVE-2025-7384",
+      "cvss": "9.8",
+      "advisory_date": "2025-07-15",
+      "description": "Unauthenticated PHP Object Injection to Arbitrary File Deletion",
+      "configs": [
+        "bugbounty-note/semgrep/unsafe-use.yaml"
+      ],
+      "direct_sink_ops": [
+        "call"
+      ],
+      "coverage": {
+        "finding_rule_ids_any": [
+          "unsafe-deserialization"
+        ],
+        "finding_paths_any": [
+          "includes/data.php"
+        ],
+        "trace_source_strings_any": [
+          "\\vxcf_form_data::get_lead_detail"
+        ],
+        "trace_sink_locations_any": [
+          "includes/data.php:545"
+        ]
+      },
+      "notes": "Direct phparser compare now matches the real vulnerable deserialization sink at includes/data.php:545 in verify_val(). Current trace fidelity is stronger than the older request-selector contract: phparser now retains the actual SQL read inside vxcf_form_data::get_entries as the source, rather than the unrelated $_REQUEST selector helper. The exact vulnerable fixture is contact-form-entries__1.4.3, and the first fixed public version 1.4.4 removes this serialized-object fallback even though other legacy maybe_unserialize() helper sites still exist."
+    },
+    {
+      "case_id": "fluent-forms-cve-2024-2771",
+      "rank": 51,
+      "plugin_name": "Contact Form Plugin by Fluent Forms for Quiz, Survey, and Drag & Drop WP Form Builder",
+      "slug": "fluentform",
+      "fixture_dir": "fluentform__5.1.16",
+      "install_version": "5.1.16",
+      "local_candidates": [
+        "fluentform"
+      ],
+      "source_type": "wporg",
+      "amount_usd": 1547,
+      "cve_id": "CVE-2024-2771",
+      "cvss": "9.8",
+      "advisory_date": "2024-04-01",
+      "description": "Missing Authorization to Settings Update and Limited Privilege Escalation",
+      "configs": [
+        "bugbounty-note/semgrep/privilege-escalation.yaml"
+      ],
+      "direct_sink_ops": [
+        "call"
+      ],
+      "coverage": {
+        "finding_rule_ids_any": [
+          "wp-request-tainted-privilege-mutation"
+        ],
+        "finding_paths_any": [
+          "app/Modules/Acl/Acl.php"
+        ],
+        "trace_source_strings_any": [
+          "$result = $managerService->addManager($this->request->all());",
+          "$managerService->addManager($this->request->all())"
+        ],
+        "trace_sink_locations_any": [
+          "app/Modules/Acl/Acl.php:348"
+        ]
+      },
+      "notes": "Direct phparser compare now reaches the real manager privilege-mutation path in vulnerable 5.1.16 at app/Modules/Acl/Acl.php:348 from ManagersController.php:19 after typed service-parameter class hints are preserved in both call-graph and runtime class resolution. Current trees still retain the same attachPermissions sink family, but only under capability-checked manager routes and at different line offsets after verifyRequest(Request $request) is added to RoleManagerPolicy."
+    },
+    {
+      "case_id": "tutor-lms-pro-cve-2026-0953",
+      "rank": 52,
+      "plugin_name": "Tutor LMS Pro",
+      "slug": "tutor-pro",
+      "fixture_dir": "tutor-pro__3.9.5",
+      "install_version": "3.9.5",
+      "local_candidates": [
+        "tutor-pro",
+        "tutor-lms-pro",
+        "tutor"
+      ],
+      "source_type": "premium",
+      "amount_usd": 1502,
+      "cve_id": "CVE-2026-0953",
+      "cvss": "9.8",
+      "advisory_date": "2026-02-02",
+      "description": "Authentication Bypass via Social Login",
+      "configs": [
+        "bugbounty-note/semgrep/privilege-escalation.yaml"
+      ],
+      "notes": "Commercial plugin. Add a manual fixture under test/semgrep_bundle_corpus/plugins/tutor-pro__3.9.5 to scan it."
+    },
+    {
+      "case_id": "wpforms-pro-cve-2023-7063",
+      "rank": 53,
+      "plugin_name": "WPForms Pro",
+      "slug": "wpforms-pro",
+      "fixture_dir": "wpforms-pro__1.8.4",
+      "install_version": "1.8.4",
+      "local_candidates": [
+        "wpforms-pro",
+        "wpforms"
+      ],
+      "source_type": "premium",
+      "amount_usd": 1500,
+      "cve_id": "CVE-2023-7063",
+      "cvss": "7.2",
+      "advisory_date": "2024-02-15",
+      "description": "Unauthenticated Stored Cross-Site Scripting via Form Submission",
+      "configs": [
+        "bugbounty-note/semgrep/xss.yaml"
+      ],
+      "notes": "Commercial plugin. Local repo has WPForms Lite coverage, not the Pro fixture range 1.8.4 through 1.8.5.3."
+    },
+    {
+      "case_id": "wp-statistics-cve-2024-2194",
+      "rank": 54,
+      "plugin_name": "WP Statistics",
+      "slug": "wp-statistics",
+      "fixture_dir": "wp-statistics__14.5",
+      "install_version": "14.5",
+      "local_candidates": [
+        "wp-statistics"
+      ],
+      "source_type": "wporg",
+      "amount_usd": 1500,
+      "cve_id": "CVE-2024-2194",
+      "cvss": "7.2",
+      "advisory_date": "2024-03-15",
+      "description": "Unauthenticated Stored Cross-Site Scripting",
+      "configs": [
+        "bugbounty-note/semgrep/xss.yaml"
+      ],
+      "direct_sink_ops": [
+        "output"
+      ],
+      "coverage": {
+        "finding_rule_ids_any": [
+          "wp-stored-xss-persistent-read-to-output"
+        ],
+        "trace_sink_locations_any": [
+          "includes/admin/templates/pages/refer.url.php:43"
+        ]
+      },
+      "notes": "Direct phparser compare now matches the real vulnerable stored-XSS sink at includes/admin/templates/pages/refer.url.php:43. The underlying vulnerable family is the public hit/referrer persistence pipeline into admin referral rendering. Current 14.16.3 no longer reproduces the same vulnerable behavior, but full-plugin negative-control output scans are still expensive and need separate performance cleanup."
+    },
+    {
+      "case_id": "post-grid-cve-2024-9636",
+      "rank": 55,
+      "plugin_name": "Post Grid and Gutenberg Blocks",
+      "slug": "post-grid",
+      "fixture_dir": "post-grid__2.3.3",
+      "install_version": "2.3.3",
+      "local_candidates": [
+        "post-grid",
+        "the-post-grid"
+      ],
+      "source_type": "wporg",
+      "amount_usd": 1495,
+      "cve_id": "CVE-2024-9636",
+      "cvss": "9.8",
+      "advisory_date": "2024-10-15",
+      "description": "Unauthenticated Privilege Escalation",
+      "configs": [
+        "bugbounty-note/semgrep/privilege-escalation.yaml"
+      ],
+      "direct_sink_ops": [
+        "call"
+      ],
+      "coverage": {
+        "finding_rule_ids_any": [
+          "wp-request-tainted-privilege-mutation"
+        ],
+        "finding_paths_any": [
+          "includes/blocks/form-wrap/functions.php"
+        ],
+        "source_strings_any": [
+          "\\form_wrap_process_registerForm"
+        ],
+        "trace_sink_locations_any": [
+          "includes/blocks/form-wrap/functions.php:2228"
+        ]
+      },
+      "notes": "Direct phparser compare now matches the real vulnerable tutorRegisterInstructor privilege-mutation branch in 2.3.3 at includes/blocks/form-wrap/functions.php:2228. The direct contract is intentionally anchored on the request-driven callable plus the exact add_role() sink, not a specific request field snippet, because the vulnerable privilege grant is a control-flow issue inside form_wrap_process_registerForm rather than a mutation driven by one semantically exact taint source. Public 2.3.4 removes the tutorRegisterInstructor branch, and current local the-post-grid is clean on the same call batch."
+    },
+    {
+      "case_id": "ultimate-member-cve-2025-1702",
+      "rank": 56,
+      "plugin_name": "Ultimate Member",
+      "slug": "ultimate-member",
+      "fixture_dir": "ultimate-member__2.10.0",
+      "install_version": "2.10.0",
+      "local_candidates": [
+        "ultimate-member"
+      ],
+      "source_type": "wporg",
+      "amount_usd": 1440,
+      "cve_id": "CVE-2025-1702",
+      "cvss": "7.5",
+      "advisory_date": "2025-03-01",
+      "description": "Unauthenticated SQL Injection via search Parameter",
+      "configs": [
+        "bugbounty-note/semgrep/sqli.yaml"
+      ],
+      "direct_sink_ops": [
+        "sql"
+      ],
+      "max_passes": 2,
+      "coverage": {
+        "finding_rule_ids_any": [
+          "tainted-sql-string"
+        ],
+        "trace_sink_locations_any": [
+          "includes/core/class-member-directory.php:1883"
+        ]
+      },
+      "notes": "Direct phparser compare now matches the real legacy search-family sink in includes/core/class-member-directory.php:1883 via Member_Directory::change_meta_sql on vulnerable 2.10.0. Current 2.11.2 no longer retains that search-path sink and only keeps the separate sorting-driven Member_Directory_Meta path, so the CVE contract is now separated cleanly."
+    },
+    {
+      "case_id": "fluent-forms-cve-2024-10646",
+      "rank": 57,
+      "plugin_name": "Contact Form Plugin by Fluent Forms for Quiz, Survey, and Drag & Drop WP Form Builder",
+      "slug": "fluentform",
+      "fixture_dir": "fluentform__5.2.6",
+      "install_version": "5.2.6",
+      "local_candidates": [
+        "fluentform"
+      ],
+      "source_type": "wporg",
+      "amount_usd": 1440,
+      "cve_id": "CVE-2024-10646",
+      "cvss": "7.2",
+      "advisory_date": "2024-11-15",
+      "description": "Unauthenticated Stored Cross-Site Scripting via Form Subject",
+      "configs": [
+        "bugbounty-note/semgrep/xss.yaml"
+      ],
+      "notes": "The old 'form subject' note here is stale. The vendor changelog confirms 5.2.7 as the fixed release, but the public 5.2.6 to 5.2.7 diff does not support a pinned subject-render XSS path. The clearest security-relevant public code change is in boot/globals.php, where 5.2.7 stops recursively trusting attacker-controlled array keys and rebuilds nested input arrays with sanitize_text_field() applied to each key before recursing. Other visible PHP diffs, including app/Services/Transfer/TransferService.php note-export changes, do not ground the claimed unauthenticated 'form subject' family either. Full output reruns on vulnerable 5.2.6 and current 6.1.20 still produce only unrelated admin/rest or payment disclosure findings. Keep metadata-only until the real vulnerable source and sink family for CVE-2024-10646 is pinned from a trustworthy advisory or patch."
+    },
+    {
+      "case_id": "ninja-forms-cve-2024-11052",
+      "rank": 58,
+      "plugin_name": "Ninja Forms - The Contact Form Builder That Grows With You",
+      "slug": "ninja-forms",
+      "fixture_dir": "ninja-forms__3.8.19",
+      "install_version": "3.8.19",
+      "local_candidates": [
+        "ninja-forms"
+      ],
+      "source_type": "wporg",
+      "amount_usd": 1440,
+      "cve_id": "CVE-2024-11052",
+      "cvss": "7.2",
+      "advisory_date": "2024-11-15",
+      "description": "Unauthenticated Stored Cross-Site Scripting via Form Calculations",
+      "configs": [
+        "bugbounty-note/semgrep/xss.yaml"
+      ],
+      "direct_sink_ops": [
+        "output"
+      ],
+      "coverage": {
+        "finding_rule_ids_any": [
+          "wp-stored-xss-persistent-read-to-output"
+        ],
+        "finding_paths_any": [
+          "includes/Templates/admin-metaboxes-calcs.html.php"
+        ],
+        "stored_write_entry_locations_any": [
+          "includes/AJAX/Controllers/Submission.php:29",
+          "includes/AJAX/Controllers/Submission.php:30"
+        ],
+        "trace_sink_locations_any": [
+          "includes/Templates/admin-metaboxes-calcs.html.php:6",
+          "includes/Templates/admin-metaboxes-calcs.html.php:8",
+          "includes/Templates/admin-metaboxes-calcs.html.php:9"
+        ]
+      },
+      "notes": "Direct phparser compare now requires both the real vulnerable calculations metabox output sinks and the real stored-write AJAX entrypoints in includes/AJAX/Controllers/Submission.php, instead of pinning the visible read-bridge source in includes/Abstracts/Model.php. In vulnerable 3.8.19, includes/Templates/admin-metaboxes-calcs.html.php still echoes value/raw/parsed at lines 6/8/9 without escaping. Public 3.8.20 and current 3.14.1 wrap those fields with esc_html() and only leave the line-4 name output. The visible trace source for this family is still a persistent-read bridge, but the compare contract is now honest for the cross-request stored-write plus read-to-output behavior."
+    },
+    {
+      "case_id": "ht-contact-form-cve-2025-7340",
+      "rank": 59,
+      "plugin_name": "HT Contact Form Widget For Elementor Page Builder & Gutenberg Blocks & Form Builder.",
+      "slug": "ht-contactform",
+      "fixture_dir": "ht-contactform__2.2.1",
+      "install_version": "2.2.1",
+      "local_candidates": [
+        "ht-contactform"
+      ],
+      "source_type": "wporg",
+      "amount_usd": 1431,
+      "cve_id": "CVE-2025-7340",
+      "cvss": "9.8",
+      "advisory_date": "2025-07-15",
+      "description": "Unauthenticated Arbitrary File Upload",
+      "configs": [
+        "bugbounty-note/semgrep/file-upload.yaml"
+      ],
+      "direct_sink_ops": [
+        "write"
+      ],
+      "coverage": {
+        "finding_rule_ids_any": [
+          "wp-request-file-upload-without-cap-check"
+        ],
+        "finding_paths_any": [
+          "admin/Includes/Services/FileManager.php"
+        ],
+        "trace_source_strings_any": [
+          "$file = $_FILES['ht_form_file'];"
+        ],
+        "trace_sink_locations_any": [
+          "admin/Includes/Services/FileManager.php:86"
+        ]
+      },
+      "notes": "Direct phparser coverage now reaches the real vulnerable unauthenticated temp upload AJAX family in ht-contactform__2.2.1: admin/Includes/Ajax.php::temp_file_upload() sources $_FILES['ht_form_file'] and admin/Includes/Services/FileManager.php:86 moves the uploaded file without file-type validation. Current 2.8.2 still triggers the broader upload sink family because the write rule does not yet model wp_check_filetype() as a safe boundary, but the vulnerable CVE path itself is now directly covered."
+    },
+    {
+      "case_id": "redux-framework-cve-2024-6828",
+      "rank": 60,
+      "plugin_name": "Redux Framework",
+      "slug": "redux-framework",
+      "fixture_dir": "redux-framework__4.4.17/redux-core/inc/extensions/color_scheme",
+      "install_version": "4.4.17",
+      "local_candidates": [
+        "redux-framework"
+      ],
+      "source_type": "wporg",
+      "amount_usd": 1408,
+      "cve_id": "CVE-2024-6828",
+      "cvss": "7.2",
+      "advisory_date": "2024-08-01",
+      "description": "Unauthenticated JSON File Upload to Stored Cross-Site Scripting",
+      "configs": [
+        "bugbounty-note/semgrep/file-upload.yaml"
+      ],
+      "direct_sink_ops": [
+        "write"
+      ],
+      "coverage": {
+        "finding_rule_ids_any": [
+          "wp-request-file-upload-without-cap-check"
+        ],
+        "trace_sink_locations_any": [
+          "color_scheme/class-redux-color-scheme-import.php:243"
+        ]
+      },
+      "notes": "The real vulnerable family is the legacy color-scheme import helper in redux-core/inc/extensions/color_scheme/color_scheme/class-redux-color-scheme-import.php, which moves an uploaded JSON file into the Redux upload directory. phparser now has a clean direct match on the narrowed vulnerable color_scheme slice at class-redux-color-scheme-import.php:243 in 4.4.17, and first fixed public 4.4.18 is clean on the same slice. The public 4.4.18 WP.org diff also makes the fixed boundary explicit by removing class-redux-color-scheme-import.php entirely from the color_scheme extension tree. Full-plugin write scans are still too expensive, so this direct contract intentionally uses the self-contained vulnerable sub-tree instead of the whole plugin root."
+    },
+    {
+      "case_id": "geo-mashup-cve-2025-48293",
+      "rank": 61,
+      "plugin_name": "Geo Mashup",
+      "slug": "geo-mashup",
+      "fixture_dir": "geo-mashup__1.13.16",
+      "install_version": "1.13.16",
+      "local_candidates": [
+        "geo-mashup"
+      ],
+      "source_type": "wporg",
+      "amount_usd": 0,
+      "cve_id": "CVE-2025-48293",
+      "cvss": "9.8",
+      "advisory_date": "2025-08-14",
+      "description": "Unauthenticated Local File Inclusion",
+      "configs": [
+        "bugbounty-note/semgrep/path-transversal.yaml"
+      ],
+      "coverage": {
+        "finding_rule_ids_any": [
+          "path-transversal"
+        ],
+        "finding_paths_any": [
+          "geo-query.php"
+        ],
+        "trace_source_strings_any": [
+          "$_GET['template']"
+        ],
+        "trace_sink_strings_any": [
+          "GeoMashup::locate_template("
+        ],
+        "trace_sink_locations_any": [
+          "geo-query.php:128"
+        ]
+      }
+    },
+    {
+      "case_id": "hide-my-wp-cve-2025-26909",
+      "rank": 62,
+      "plugin_name": "Hide My WP Ghost",
+      "slug": "hide-my-wp",
+      "fixture_dir": "hide-my-wp__5.4.01",
+      "install_version": "5.4.01",
+      "local_candidates": [
+        "hide-my-wp"
+      ],
+      "source_type": "wporg",
+      "amount_usd": 0,
+      "cve_id": "CVE-2025-26909",
+      "cvss": "9.6",
+      "advisory_date": "2025-03-19",
+      "description": "Unauthenticated Local File Inclusion",
+      "configs": [
+        "bugbounty-note/semgrep/path-transversal.yaml"
+      ],
+      "direct_sink_ops": [
+        "include"
+      ],
+      "coverage": {
+        "finding_rule_ids_any": [
+          "path-transversal"
+        ],
+        "finding_paths_any": [
+          "models/Files.php"
+        ],
+        "trace_sink_locations_any": [
+          "models/Files.php:515"
+        ]
+      }
+    },
+    {
+      "case_id": "mystickymenu-cve-2026-3657",
+      "rank": 63,
+      "plugin_name": "My Sticky Bar - Floating Notification Bar & Sticky Header (formerly myStickymenu)",
+      "slug": "mystickymenu",
+      "fixture_dir": "mystickymenu__2.8.6",
+      "install_version": "2.8.6",
+      "local_candidates": [
+        "mystickymenu"
+      ],
+      "source_type": "wporg",
+      "amount_usd": 0,
+      "cve_id": "CVE-2026-3657",
+      "cvss": "7.5",
+      "advisory_date": "2026-03-11",
+      "description": "Unauthenticated SQL Injection via 'stickymenu_contact_lead_form' Action",
+      "configs": [
+        "bugbounty-note/semgrep/sqli.yaml"
+      ],
+      "direct_sink_ops": [
+        "sql"
+      ],
+      "coverage": {
+        "finding_rule_ids_any": [
+          "tainted-sql-string"
+        ],
+        "finding_paths_any": [
+          "mystickymenu.php"
+        ],
+        "trace_sink_locations_any": [
+          "mystickymenu.php:2396"
+        ],
+        "trace_source_strings_any": [
+          "$postArr = $_POST;",
+          "stickymenu_contact_lead_form"
+        ]
+      }
+    },
+    {
+      "case_id": "uncanny-automator-cve-2025-3623",
+      "rank": 64,
+      "plugin_name": "Uncanny Automator",
+      "slug": "uncanny-automator",
+      "fixture_dir": "uncanny-automator__6.4.0.1",
+      "install_version": "6.4.0.1",
+      "local_candidates": [
+        "uncanny-automator"
+      ],
+      "source_type": "wporg",
+      "amount_usd": 1021,
+      "cve_id": "CVE-2025-3623",
+      "cvss": "9.1",
+      "advisory_date": "2025-05-01",
+      "description": "Unauthenticated PHP Object Injection in automator_api_decode_message Function",
+      "configs": [
+        "bugbounty-note/semgrep/unsafe-use.yaml"
+      ],
+      "direct_sink_ops": [
+        "call"
+      ],
+      "coverage": {
+        "finding_rule_ids_any": [
+          "unsafe-deserialization"
+        ],
+        "finding_paths_any": [
+          "src/core/lib/helpers/class-automator-recipe-helpers.php"
+        ],
+        "trace_sink_locations_any": [
+          "src/core/lib/helpers/class-automator-recipe-helpers.php:548"
+        ],
+        "source_strings_any": [
+          "function automator_api_decode_message(",
+          "return sanitize_text_field( filter_input( $type, $variable, $flags ) );"
+        ]
+      },
+      "notes": "Exact vulnerable/fixed direct call scans are now practical on the current phparser tree. The vulnerable 6.4.0.1 fixture reports unsafe-deserialization at class-automator-recipe-helpers.php:548, and the exact fixed 6.4.0.2 package drops that helper sink after replacing maybe_unserialize(...) with json_decode(..., true)."
+    },
+    {
+      "case_id": "pods-cve-2023-6999",
+      "rank": 65,
+      "plugin_name": "Pods - Custom Content Types and Fields",
+      "slug": "pods",
+      "fixture_dir": "pods__3.0.10-shortcode-slice",
+      "install_version": "3.0.10",
+      "local_candidates": [
+        "pods"
+      ],
+      "source_type": "wporg",
+      "amount_usd": 1079,
+      "cve_id": "CVE-2023-6999",
+      "cvss": "8.8",
+      "advisory_date": "2024-02-14",
+      "description": "Authenticated (Contributor+) Remote Code Execution via shortcode view loading",
+      "configs": [
+        "bugbounty-note/semgrep/path-transversal.yaml"
+      ],
+      "direct_sink_ops": [
+        "include"
+      ],
+      "max_passes": 1,
+      "coverage": {
+        "finding_rule_ids_any": [
+          "path-transversal"
+        ],
+        "finding_paths_any": [
+          "classes/PodsView.php"
+        ],
+        "trace_sink_locations_any": [
+          "classes/PodsView.php:737"
+        ],
+        "source_strings_any": [
+          "pods_shortcode",
+          "pods_shortcode_form"
+        ]
+      },
+      "notes": "Exact vulnerable/fixed shortcode diffs are confirmed for 3.0.10 -> 3.0.10.2, but the full exact package is too heavy for a stable corpus row on the current phparser tree. This case therefore uses a reduced public-shortcode slice fixture that still preserves the direct path from includes/general.php into PodsView::view and require $_view at classes/PodsView.php:737."
+    },
+    {
+      "case_id": "king-addons-cve-2025-8489",
+      "rank": 66,
+      "plugin_name": "King Addons for Elementor",
+      "slug": "king-addons",
+      "fixture_dir": "king-addons__51.1.14-register-slice",
+      "install_version": "51.1.14",
+      "local_candidates": [
+        "king-addons"
+      ],
+      "source_type": "wporg",
+      "amount_usd": 1073,
+      "cve_id": "CVE-2025-8489",
+      "cvss": "9.8",
+      "advisory_date": "2025-08-15",
+      "description": "Unauthenticated Privilege Escalation via Registration Role Field",
+      "configs": [
+        "bugbounty-note/semgrep/privilege-escalation.yaml"
+      ],
+      "direct_sink_ops": [
+        "call"
+      ],
+      "max_passes": 1,
+      "coverage": {
+        "finding_rule_ids_any": [
+          "wp-request-tainted-privilege-mutation"
+        ],
+        "finding_paths_any": [
+          "includes/widgets/Login_Register_Form/Login_Register_Form_Ajax.php"
+        ],
+        "trace_source_strings_any": [
+          "$user_role = isset($_POST['user_role']) ? sanitize_text_field($_POST['user_role']) : 'subscriber';"
+        ],
+        "trace_sink_locations_any": [
+          "includes/widgets/Login_Register_Form/Login_Register_Form_Ajax.php:351"
+        ]
+      },
+      "notes": "This reduced exact vulnerable fixture preserves the public registration path in 51.1.14 where $_POST['user_role'] flows through handle_register_ajax() into wp_insert_user($user_data) at Login_Register_Form_Ajax.php:351. The generic phparser fix models wp_insert_user/wp_update_user role writes as privilege-mutation sinks while suppressing the common low-privilege allowlist shape used by fixed 51.1.35, where the requested role is clamped to subscriber/customer before the insert."
+    },
+    {
+      "case_id": "gotmls-cve-2025-11705",
+      "rank": 67,
+      "plugin_name": "Anti-Malware Security and Brute-Force Firewall",
+      "slug": "gotmls",
+      "fixture_dir": "gotmls__4.23.81",
+      "install_version": "4.23.81",
+      "local_candidates": [
+        "gotmls"
+      ],
+      "source_type": "wporg",
+      "amount_usd": 960,
+      "cve_id": "CVE-2025-11705",
+      "cvss": "6.5",
+      "advisory_date": "2025-10-31",
+      "description": "Missing Authorization to Authenticated (Subscriber+) Arbitrary File Read",
+      "configs": [
+        "bugbounty-note/semgrep/path-transversal.yaml"
+      ],
+      "direct_sink_ops": [
+        "read"
+      ],
+      "coverage": {
+        "finding_rule_ids_any": [
+          "request-path-read-delete"
+        ],
+        "finding_paths_any": [
+          "index.php"
+        ],
+        "trace_source_strings_any": [
+          "$file = GOTMLS_decode($_GET[\"GOTMLS_scan\"]);"
+        ],
+        "trace_sink_locations_any": [
+          "index.php:1858"
+        ]
+      },
+      "notes": "Exact vulnerable 4.23.81 preserves the low-privilege GOTMLS_ajax_scan path where $_GET[\"GOTMLS_scan\"] is decoded and then read through file_get_contents($real_file) at index.php:1858. Fixed 4.23.83 adds GOTMLS_kill_invalid_user() to the handler family; current phparser now models that helper as an authenticated-path statement guard, but the raw read finding still remains on both exact tags, so this corpus row is vulnerable-fixture-only rather than a clean vulnerable-vs-fixed separator."
+    },
+    {
+      "case_id": "suretriggers-cve-2025-3102",
+      "rank": 68,
+      "plugin_name": "SureTriggers",
+      "slug": "suretriggers",
+      "fixture_dir": "suretriggers__1.0.78-action-slice",
+      "install_version": "1.0.78",
+      "local_candidates": [
+        "suretriggers"
+      ],
+      "source_type": "wporg",
+      "amount_usd": 950,
+      "cve_id": "CVE-2025-3102",
+      "cvss": "8.1",
+      "advisory_date": "2025-04-10",
+      "description": "Authorization Bypass due to Missing Empty Value Check to Unauthenticated Administrative User Creation",
+      "configs": [
+        "bugbounty-note/semgrep/privilege-escalation.yaml"
+      ],
+      "direct_sink_ops": [
+        "call"
+      ],
+      "max_passes": 1,
+      "coverage": {
+        "finding_rule_ids_any": [
+          "wp-request-tainted-privilege-mutation"
+        ],
+        "finding_paths_any": [
+          "action-route.php"
+        ],
+        "trace_source_strings_any": [
+          "$selected_options = $request->get_param('selected_options');"
+        ],
+        "trace_sink_locations_any": [
+          "action-route.php:57"
+        ]
+      },
+      "notes": "This reduced vulnerable slice preserves the exact public REST route shape from SureTriggers 1.0.78: /suretriggers/v1/automation/action behind autheticate_user(), with the vulnerable missing-empty-check token comparison and the real ChangeRole role-mutation sink. Current phparser now classifies the hardened negated-hash_equals permission-callback shape as authenticated, but the generic privilege-mutation rule still reports the fixed reduced slice too, so this corpus row is intentionally vulnerable-fixture-only rather than a clean vulnerable-vs-fixed separator."
+    },
+    {
+      "case_id": "blog2social-cve-2024-3549",
+      "rank": 69,
+      "plugin_name": "Blog2Social: Social Media Auto Post & Scheduler",
+      "slug": "blog2social",
+      "fixture_dir": "blog2social__7.4.1-sql-slice",
+      "install_version": "7.4.1",
+      "local_candidates": [
+        "blog2social"
+      ],
+      "source_type": "wporg",
+      "amount_usd": 1032,
+      "cve_id": "CVE-2024-3549",
+      "cvss": "9.9",
+      "advisory_date": "2024-04-29",
+      "description": "Authenticated (Subscriber+) SQL Injection",
+      "configs": [
+        "bugbounty-note/semgrep/sqli.yaml"
+      ],
+      "direct_sink_ops": [
+        "sql"
+      ],
+      "max_passes": 1,
+      "coverage": {
+        "finding_rule_ids_any": [
+          "tainted-sql-string"
+        ],
+        "finding_paths_any": [
+          "slice.php"
+        ],
+        "trace_source_strings_any": [
+          "$b2sSortPostType = (isset($_POST['b2sSortPostType'])"
+        ],
+        "trace_sink_locations_any": [
+          "slice.php:44"
+        ]
+      },
+      "notes": "This reduced vulnerable slice preserves the exact authenticated AJAX SQL path from Blog2Social 7.4.1 where b2sSortPostType flows through Ajax_Get::getSortData into B2S_Post_Item::getData and into the raw LIKE fragment at slice.php:44. Exact reduced 7.4.2 hardens both searchPostTitle and searchPostType with esc_like/esc_sql plus prepare, and current phparser now cleanly separates the reduced vuln/fixed slices as 1/0."
+    },
+    {
+      "case_id": "uncanny-automator-cve-2025-2075",
+      "rank": 70,
+      "plugin_name": "Uncanny Automator",
+      "slug": "uncanny-automator",
+      "fixture_dir": "uncanny-automator__6.3.0.2-async-action-slice",
+      "install_version": "6.3.0.2",
+      "local_candidates": [
+        "uncanny-automator"
+      ],
+      "source_type": "wporg",
+      "amount_usd": 1065,
+      "cve_id": "CVE-2025-2075",
+      "cvss": "8.8",
+      "advisory_date": "2025-03-15",
+      "description": "Missing Authorization to Authenticated (Subscriber+) Privilege Escalation",
+      "configs": [
+        "bugbounty-note/semgrep/privilege-escalation.yaml"
+      ],
+      "direct_sink_ops": [
+        "call"
+      ],
+      "max_passes": 1,
+      "coverage": {
+        "finding_rule_ids_any": [
+          "wp-request-tainted-privilege-mutation"
+        ],
+        "finding_paths_any": [
+          "src/integrations/wp/actions/wp-userrole.php"
+        ],
+        "trace_source_strings_any": [
+          "$role = $request->get_param('role');"
+        ],
+        "trace_sink_locations_any": [
+          "src/integrations/wp/actions/wp-userrole.php:8"
+        ]
+      },
+      "notes": "This reduced vulnerable slice preserves the real page-5 async_action REST seam from Uncanny Automator 6.3.0.2: a permission_callback that validates hash_equals() using Auth(AUTOMATOR_BASE_FILE), i.e. a predictable public path seed, followed by the real WP_USERROLE::user_role role-mutation sink. Current phparser now distinguishes public-seeded hash_equals permission callbacks from secret-backed ones, but the fixed-like reduced slice still reports the same privilege-mutation sink as authenticated rather than disappearing entirely, so this corpus row is intentionally vulnerable-fixture-only."
+    },
+    {
+      "case_id": "unlimited-elements-cve-2023-6743",
+      "rank": 71,
+      "plugin_name": "Unlimited Elements for Elementor",
+      "slug": "unlimited-elements-for-elementor",
+      "fixture_dir": "unlimited-elements__1.5.88-template-import-slice",
+      "install_version": "1.5.88",
+      "local_candidates": [
+        "unlimited-elements-for-elementor"
+      ],
+      "source_type": "wporg",
+      "amount_usd": 1057,
+      "cve_id": "CVE-2023-6743",
+      "cvss": "8.8",
+      "advisory_date": "2024-02-14",
+      "description": "Authenticated (Contributor+) Remote Code Execution via template import",
+      "configs": [
+        "bugbounty-note/semgrep/file-upload.yaml"
+      ],
+      "direct_sink_ops": [
+        "write"
+      ],
+      "max_passes": 1,
+      "coverage": {
+        "finding_rule_ids_any": [
+          "wp-request-file-upload-without-cap-check"
+        ],
+        "finding_paths_any": [
+          "slice.php"
+        ],
+        "trace_source_strings_any": [
+          "$tmp_name = $_FILES['file']['tmp_name'];"
+        ],
+        "trace_sink_locations_any": [
+          "slice.php:14"
+        ]
+      },
+      "notes": "This reduced vulnerable slice preserves the authenticated template-import zip branch from Unlimited Elements 1.5.88 where the wp_ajax_unitecreator_elementor_import_template handler sends the uploaded file into UniteZipUC::extract(). Exact full-package scans still hit surviving helper families in both tags, but the reduced fixed slice that throws before the zip branch now separates cleanly as 1/0 under the generic archive extract sink model."
+    },
+    {
+      "case_id": "drag-and-drop-multiple-file-upload-contact-form-7-cve-2025-2328",
+      "rank": 72,
+      "plugin_name": "Drag and Drop Multiple File Upload for Contact Form 7",
+      "slug": "drag-and-drop-multiple-file-upload-contact-form-7",
+      "fixture_dir": "drag-and-drop-multiple-file-upload-contact-form-7__1.3.8.7-delete-hook-slice",
+      "install_version": "1.3.8.7",
+      "local_candidates": [
+        "drag-and-drop-multiple-file-upload-contact-form-7"
+      ],
+      "source_type": "wporg",
+      "amount_usd": 1114,
+      "cve_id": "CVE-2025-2328",
+      "cvss": "8.8",
+      "advisory_date": "2025-03-27",
+      "description": "Unauthenticated Arbitrary File Deletion",
+      "configs": [
+        "bugbounty-note/semgrep/file-upload.yaml"
+      ],
+      "direct_sink_ops": [
+        "delete"
+      ],
+      "max_passes": 2,
+      "coverage": {
+        "finding_rule_ids_any": [
+          "wp-request-file-delete-without-cap-check"
+        ],
+        "finding_paths_any": [
+          "slice.php"
+        ],
+        "trace_source_strings_any": [
+          "'post_content' => $_POST['file_url']"
+        ],
+        "trace_sink_locations_any": [
+          "slice.php:29"
+        ]
+      },
+      "notes": "This reduced vulnerable slice preserves the real page-5 before_delete_post stored-content delete seam from Drag and Drop Multiple File Upload for Contact Form 7 1.3.8.7 while simplifying the extracted attachment URL handling. Exact full-package scans still prefer a separate surviving AJAX delete surface in both tags, but the reduced fixed slice that applies basename plus realpath-root confinement now separates cleanly as 1/0 under the generic trusted-prefix path guard model."
+    }
+  ]
+}

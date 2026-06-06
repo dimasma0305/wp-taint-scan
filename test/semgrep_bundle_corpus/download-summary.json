@@ -1,0 +1,36 @@
+{
+  "manifest": "/root/project/wp-bugbounty/test/semgrep_bundle_corpus/corpus.json",
+  "plugins_dir": "/root/project/wp-bugbounty/test/semgrep_bundle_corpus/plugins",
+  "results": [
+    {
+      "case_id": "geo-mashup-cve-2025-48293",
+      "slug": "geo-mashup",
+      "fixture_dir": "geo-mashup__1.13.16",
+      "source_type": "wporg",
+      "status": "downloaded",
+      "plugin_dir": "/root/project/wp-bugbounty/test/semgrep_bundle_corpus/plugins/geo-mashup__1.13.16",
+      "plugin_version": "1.13.16",
+      "local_plugin_dir": "/root/project/wp-bugbounty/bugbounty-note/wordpress/wp_install/plugins/geo-mashup__1.13.16",
+      "note": "1.13.16"
+    },
+    {
+      "case_id": "hide-my-wp-cve-2025-26909",
+      "slug": "hide-my-wp",
+      "fixture_dir": "hide-my-wp__5.4.01",
+      "source_type": "wporg",
+      "status": "downloaded",
+      "plugin_dir": "/root/project/wp-bugbounty/test/semgrep_bundle_corpus/plugins/hide-my-wp__5.4.01",
+      "plugin_version": "5.4.01",
+      "local_plugin_dir": "/root/project/wp-bugbounty/bugbounty-note/wordpress/wp_install/plugins/hide-my-wp__5.4.01",
+      "note": "5.4.01"
+    }
+  ],
+  "counts": {
+    "present": 0,
+    "copied_from_local": 0,
+    "downloaded": 2,
+    "manual_fixture_required": 0,
+    "download_error": 0,
+    "missing": 0
+  }
+}

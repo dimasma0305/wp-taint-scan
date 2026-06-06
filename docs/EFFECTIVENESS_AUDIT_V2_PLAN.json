@@ -1,0 +1,512 @@
+{
+  "effectiveness_scorecard": "\n| Dimension | Current real-world state | Top lever |\n|---|---|---|\n| Recall (covered classes) | Strong on XSS/SQLi/file/deser/missing-auth; **zero** coverage of SSRF, open-redirect/CRLF, type-juggling auth bypass, printf/wp_die output, framework request bags (Input::/$request->get/PSR-7), traits, archive-extraction (extractTo/unzip dest) | Add SSRF sink-op (fn-ssrf) + printf/wp_die sinks (FW-4) + framework sources (FW-1/2) + trait indexing (ipc-1) |\n| Precision (FP volume) | ~40% of session noise already fixable but undeployed; whitelist-guarded dispatch (37.5% unsafe-use FP), file-write\u2192cache mislabeled upload (94% FP), missing sanitizers all live | Deploy landed fixes (rebuild) + freemius exclude + value-set guard tracker (G-WHITELIST) + file-write destination model (U1) + sanitizer set (FW-5) |\n| Performance (mass-scan) | ~155 s single-threaded base build + multi-GB transient churn + 1-2 of 8 cores used; OOM backstop silently drops findings on 5000-file plugins | walkNode switch (PERF-2) + memoize pass-invariant resolution (PERF-1) + parallelize indexers (PERF-3) + memstats gauge/raise worker cap (PERF-4) |\n| Triage usability | Exploitability rank exists but only in Markdown; consumed JSON is unranked/unlabeled; merge can bury unauth bugs under capability_checked | Emit score/confidence/access_tier + sort JSON (TRIAGE-1) + most-permissive merge access (TRIAGE-5) |\n",
+  "executive_summary": "After pass 1 the engine is fundamentally sound on the classes it models (XSS, SQLi, file ops, deserialization, missing-auth/priv-esc) and its capability/nonce/REST context modeling is genuinely good, but three things keep it from being VERY effective in the real world: it cannot scan the whole tree (perf cliff), it emits a large fraction of noise that is mostly a handful of systematic root causes, and several high-frequency bounty classes are entirely unmodeled. The single most important and lowest-risk action is non-code: the live binary at /usr/local/bin/phparser is stale (Jun 5 16:27) while the working tree already contains four confirmed precision fixes (constant-ternary condition taint, reflected/stored-XSS source-collapse, int-cast numericSafe, isset/empty boolean taint) that cut a 28-plugin session from 430 to 259 findings (40%) with 57/57 corpus intact \u2014 rebuilding/redeploying ships that immediately. On performance, the confirmed dominant cost is walkNode at ~70% CPU (re-walking pass-invariant ASTs every fixpoint pass with no memo, and a generic SubNodeNames()/SubNode() fallback that churns ~19 GB/batch and pins GC at ~35%); extending the walkNode switch (PERF-2, small/low-risk) plus memoizing pass-invariant method/dispatch resolution (PERF-1) plus parallelizing the single-threaded base-build indexers (PERF-3) plus replacing the per-callable stop-the-world ReadMemStats with a sampled gauge and raising the 2-worker cap (PERF-4) together convert mass scanning from ~1 scan/machine to feasible and remove the OOM-backstop finding loss. On false positives, beyond the deploy, the biggest confirmed levers are excluding the bundled Freemius SDK (38 findings + 5057 files + 7x faster on affected plugins), a value-set guard tracker for strict-in_array/switch/array_key_exists allowlists before dynamic-dispatch and ORDER-BY sinks (G-WHITELIST, 37.5% of unsafe-use FPs), and a file-write destination model that stops flagging cache/log writes as upload-RCE (U1, ~94% of file-upload findings) \u2014 the last must use content PROVENANCE ($_FILES vs $_SERVER-cache-metadata), not path-taint/extension, or it regresses two corpus tests. On recall, the highest-value entirely-unmodeled classes are SSRF (request URL into wp_remote_*/curl \u2014 ~1500 files, zero findings today), printf/vprintf/wp_die/print_r output sinks (wp_die is even mis-modeled as a guard, a double false-negative), framework request sources (facade Input::get/post for Tutor-LMS-scale plugins; $request->get/PSR-7 bags; ArrayAccess $request['id']), PHP traits (232 plugins declare them, 33 with source+sink bodies), and archive-extraction zip-slip (extractTo/unzip_file destination). Triage usability is a force-multiplier: the exploitability score never reaches the JSON that triagers and the queue actually consume, so emitting score/confidence/access_tier and sorting the JSON (TRIAGE-1) plus fixing the cluster-merge that buries an unauth path as capability_checked (TRIAGE-5, a non-negotiable correctness fix) makes every other recall/precision gain visible. Recommended sequence: (1) deploy + freemius + walkNode switch as same-day quick wins; (2) the perf memo/parallelism trio to unlock the tree; (3) the high-yield FP fixes (whitelist guard, file-write destination, sanitizers); (4) TRIAGE-1/5 to make output trustworthy; (5) new detectors in confirmed-impact order (SSRF, printf/wp_die, facade/framework sources, traits, archive-extraction), each gated through go test ./internal/taintscan and the 57-case corpus. Items needing careful corpus validation are flagged per-row: U1 (provenance discriminator), G-WHITELIST (strict in_array + string-literals only, never method_exists), ipc-2 and FW-3 (over-taint/FP-volume risk), and fn-secondorder (FP-storm risk).",
+  "quick_wins": [
+    "Rebuild and redeploy /usr/local/bin/phparser from the working tree NOW: the four landed precision fixes (constant-ternary, source-collapse, int-cast numericSafe, isset/empty) cut a 28-plugin session 430->259 (40%) and the deployed binary is stale (Jun 5) \u2014 zero code work, biggest immediate noise reduction. Confirm with go test ./internal/taintscan (57/57) before deploy.",
+    "Add \"freemius\" to defaultExcludedDirs() (cmd/taint-scan/main.go:168): removes 38 out-of-scope SDK findings, skips 5057 files, ~7x faster on freemius-bundling plugins (tablepress 31s->4.5s). parsetree.go skips by dir-name so it catches both freemius/ and libraries/freemius/.",
+    "PERF-2: extend the walkNode switch (ast_helpers.go:1925/1984) with direct child-recursion for ExprTernary/ExprAssignOp*/ExprArray+ArrayItem/StmtCase/StmtSwitch/StmtForeach/ExprBooleanNot/Isset/Empty/ExprBinaryOp* \u2014 removes ~70-80% of the ~19GB/batch allocations, GC 35%->~10%, lowers the OOM cliff. Order-preserving, low risk.",
+    "FW-5: add wc_clean/esc_xml/tag_escape/sanitize_hex_color(_no_hash)/wp_filter_nohtml_kses/antispambot/number_format to isHTMLOutputSafeFunc (builtin_models.go:166) \u2014 cuts FPs in the highest-volume rule, corpus-safe (XSS-only).",
+    "FW-4: add printf/vprintf/wp_die/print_r as output sinks (builtin_models.go directOutputFuncArgIndexes + call_eval.go:307) and stop mis-modeling wp_die as a validation guard (wordpress_context.go:18) \u2014 recovers a whole reflected-XSS sink family, reuse numericSafe for printf('%d').",
+    "FW-2: extend isRequestGetterStaticCall (builtin_models.go:132) with Input::post/get/query and className 'input' \u2014 pure facade-name idiom, restores recall for Tutor LMS (100k+) and wpfluent ecosystems, low risk.",
+    "U2+U3: model ZipArchive::extractTo (arg0, archive-receiver gated) and unzip_file destination (arg0->{0,1}) \u2014 opens archive-extraction/zip-slip RCE across ~80+74 plugins, small change."
+  ],
+  "prioritized": [
+    {
+      "rank": 1,
+      "title": "Deploy already-landed precision fixes: rebuild and redeploy the live binary",
+      "category": "deployment/precision",
+      "wp_vuln_class": "Reflected XSS, SQLi (noise)",
+      "rationale": "The live /usr/local/bin/phparser is dated Jun 5 16:27 but internal/taintscan has 10+ uncommitted modified files containing four CONFIRMED precision fixes: constant-ternary condition taint (expression_eval.go:197 ExprTernary now If.union(Else)), reflected/stored-XSS source-collapse (helpers.go:274-275 verified present), int-cast numericSafe at SQL sinks, and isset/empty boolean-taint suppression. These cut a 28-plugin session 430->259 (40%) with 57/57 corpus intact. The entire FP analysis upstream was partly measured against the STALE binary, so multiple audits (TRIAGE-2 refuted, TRIAGE-4 figures stale) reduce to 'the fix exists, it just is not deployed.' Highest impact-per-effort item in the whole plan and zero code risk.",
+      "files_to_change": [
+        "/root/project/wp-bugbounty/.agents/skills/authoring-semgrep-rules/scripts/phparser/cmd/taint-scan",
+        "/usr/local/bin/phparser"
+      ],
+      "generic_approach": "cd phparser && go test ./internal/taintscan (confirm 57/57) && go build -o /usr/local/bin/phparser ./cmd/taint-scan. Then re-run the /tmp/s-* baseline so all subsequent triage/FP measurements are against the current engine, not the Jun-5 binary. Commit the working-tree precision changes.",
+      "regression_risk": "low",
+      "expected_effect": "~40% session-wide finding reduction (430->259) delivered immediately; eliminates the constant-ternary reflected-XSS flood (wordpress-popular-posts 99->3) and int-cast SQL FPs (cfdb7 11->3).",
+      "confidence": "high",
+      "effort": "small",
+      "verification_status": "confirmed_on_real_plugin"
+    },
+    {
+      "rank": 2,
+      "title": "Exclude bundled Freemius SDK directory (fp-5)",
+      "category": "false_positive/perf",
+      "wp_vuln_class": "none",
+      "rationale": "Freemius is a generic third-party SDK (like vendor/), identical across 37 bundling plugins, out of bounty scope, and its findings are intentional-HTML/internal-logging FPs. defaultExcludedDirs() (cmd/taint-scan/main.go:168, verified: lists vendor/node_modules/tests, NOT freemius) skips by directory-name component so adding one string catches both freemius/ and libraries/freemius/. Confirmed: 38 findings removed, 5057 files skipped tree-wide, tablepress scan 31.3s->4.5s (7x). Doubles as a direct perf win on the mass-scan blocker.",
+      "files_to_change": [
+        "/root/project/wp-bugbounty/.agents/skills/authoring-semgrep-rules/scripts/phparser/cmd/taint-scan/main.go"
+      ],
+      "generic_approach": "Add \"freemius\" (and consider other ubiquitous bundled SDK dir names) to the slice returned by defaultExcludedDirs(). The -exclude-dir mechanism already proves correctness; this just defaults it.",
+      "regression_risk": "low",
+      "expected_effect": "9% session FP reduction (38/430), 5057 fewer files parsed, ~7x faster on freemius plugins.",
+      "confidence": "high",
+      "effort": "small",
+      "verification_status": "confirmed_on_real_plugin"
+    },
+    {
+      "rank": 3,
+      "title": "PERF-2: extend walkNode switch to hot fall-through node types (kill per-node child-slice allocation)",
+      "category": "performance",
+      "wp_vuln_class": "none",
+      "rationale": "Confirmed via alloc profile: walkNode (ast_helpers.go:1925) fast-paths ~17 node types then falls through at :1984 to `for _,name:=range node.SubNodeNames(){ node.SubNode(name) }`; SubNodeNames returns a fresh []string per call. On everest-forms one batch allocated 19.21 GB, of which SubNodeNames/SubNode is ~14 GB (73%) \u2014 top allocators ExprTernary/ExprAssignOpConcat/ExprArray/StmtCase/StmtForeach/ExprBinaryOp*/Isset/Empty. GC tax confirmed ~35% (scanobject 19.9% + mallocgc 15.6% + gcBgMarkWorker 20.9%). This transient churn is the multi-GB RSS peak that trips the 3 GiB OOM backstop (analysis_callable.go:216) on 5000-file plugins, silently dropping findings.",
+      "files_to_change": [
+        "/root/project/wp-bugbounty/.agents/skills/authoring-semgrep-rules/scripts/phparser/internal/taintscan/ast_helpers.go"
+      ],
+      "generic_approach": "Add explicit child-recursion cases to the walkNode switch for the hot fall-through types: ExprTernary, ExprAssignOp* (Concat/Plus/...), ExprArray + ExprArrayItem, StmtCase, StmtSwitch, StmtForeach, ExprBooleanNot, ExprIsset, ExprEmpty, ExprBinaryOp* \u2014 recurse into concrete fields instead of SubNodeNames()/SubNode(). Traversal order/coverage identical. Optionally make generated SubNodeNames return package-level shared slices.",
+      "regression_risk": "low",
+      "expected_effect": "Removes ~70-80% of allocations/batch; GC ~35%->~10% of CPU; materially lower peak RSS, fewer OOM-backstop finding drops.",
+      "confidence": "high",
+      "effort": "small",
+      "verification_status": "confirmed_on_real_plugin"
+    },
+    {
+      "rank": 4,
+      "title": "PERF-1: memoize pass-invariant method/dynamic-dispatch resolution (walkNode ~70% CPU)",
+      "category": "performance",
+      "wp_vuln_class": "none",
+      "rationale": "Confirmed via CPU profile: walkNode 94.26s cum (69.9%), resolveMethodKeyWithArgs 63.4s (47%), literalArgPathHintsForArgsWithEnv 56.7s (42%), exactDynamicDispatchValuesForVariable 51.3s (38%). These run during per-callable analysis which re-runs every fixpoint pass (action pass1 analyze=317s, pass2=230, pass3=84; read pass1=188, pass2=182). Their inputs (call-site AST, callable, literal indexes, deterministic stringEnv) are frozen after buildBaseEngineForSinkOps and never touch e.summaries (the only pass-varying state) \u2014 so re-walking is pure waste. No node/callable-keyed memo exists today. This is the #1 throughput lever and also accelerates the base-build indexers (PERF-3) which call the same path.",
+      "files_to_change": [
+        "/root/project/wp-bugbounty/.agents/skills/authoring-semgrep-rules/scripts/phparser/internal/taintscan/analysis_support.go",
+        "/root/project/wp-bugbounty/.agents/skills/authoring-semgrep-rules/scripts/phparser/internal/taintscan/ast_helpers.go",
+        "/root/project/wp-bugbounty/.agents/skills/authoring-semgrep-rules/scripts/phparser/internal/taintscan/callgraph_relevance.go"
+      ],
+      "generic_approach": "Add a base-engine cache (lazy, never invalidated since inputs are post-build-frozen) keyed by call-site node identity for the PURE results of literalArgHintsForArgsWithEnv + literalArgPathHintsForArgsWithEnv (resolveMethodKeyWithArgs analysis_support.go:594-595), and a cache keyed by (callable key, var name, beforeLine) for exactDynamicDispatchValuesForVariable / foreach variant (ast_helpers.go:1077/1145). CRITICAL: wrap only the pure hint computations \u2014 keep maybeSpecializeCallableForLiteralArgsAndPaths side effects OUTSIDE the cache. Caches live on the shared base engine so all 9 batch clones and all passes hit them.",
+      "regression_risk": "medium",
+      "expected_effect": "44-72% of analysis CPU eliminated; passes 2..N collapse to near-instant (action batch ~254s->~60-90s on a 390-file fixture; far larger absolute savings on 2500-5700-file plugins).",
+      "confidence": "high",
+      "effort": "medium",
+      "verification_status": "confirmed_on_real_plugin"
+    },
+    {
+      "rank": 5,
+      "title": "TRIAGE-1: make the consumed JSON triage-ready (sort by score + emit score/confidence/access_tier)",
+      "category": "triage",
+      "wp_vuln_class": "none",
+      "rationale": "Confirmed: the exploitability score sorts only a COPY for the Markdown summary (main.go:316-320); the machine-readable taint-results.json (what triagers and manage_candidate_queue.py actually read) keeps stable path/line order with NO score/confidence/access field. In defender-security the two unauthenticated bugs sit at JSON indices [3] and [5] beneath permission_callback/authenticated noise on every scan. No Python consumer re-applies FindingExploitabilityScore (0 hits). All the carefully-built ranking signal is wasted on the consumed artifact. This is the foundation for TRIAGE-3/4/6 and multiplies the value of every recall/precision gain.",
+      "files_to_change": [
+        "/root/project/wp-bugbounty/.agents/skills/authoring-semgrep-rules/scripts/phparser/internal/taintscan/analysis_driver.go",
+        "/root/project/wp-bugbounty/.agents/skills/authoring-semgrep-rules/scripts/phparser/internal/taintscan/taintscan.go"
+      ],
+      "generic_approach": "In dedupeFinalFindings (analysis_driver.go:179) or at Payload assembly, sort.SliceStable(payload.Results) by FindingExploitabilityScore descending. Add serialized fields to Finding (taintscan.go:54): score int, access_tier string (effective access incl. stored-write override), confidence string \u2014 populated from the existing FindingExploitabilityScore / accessTierWeight helpers so JSON and Markdown share one source of truth. Presentation-only; never drops findings.",
+      "regression_risk": "low",
+      "expected_effect": "Every scan's JSON surfaces real unauth bugs at the top instead of mid-array; unlocks downstream queue consumption of engine ranking.",
+      "confidence": "high",
+      "effort": "small",
+      "verification_status": "confirmed_on_real_plugin"
+    },
+    {
+      "rank": 6,
+      "title": "PERF-3: parallelize the single-threaded base-build relevance indexers",
+      "category": "performance",
+      "wp_vuln_class": "none",
+      "rationale": "Confirmed: a fixed ~99-155s single-threaded base build precedes any finding; index-action-sink-relevant-use-orders alone is 52-77s and CPU holds ~1.2 cores on an 8-core box. indexActionSinkRelevantUseOrders / indexCallSinkRelevantUseOrders / indexOutputSinkRelevantUseOrders / indexSQL/File/IncludeSinkRelevantUseOrders are plain serial `for _,key:=range e.callOrder { ...ForCallable(...) }` loops writing independent map keys \u2014 embarrassingly parallel. Caveat: index-action costs 52s only in the default all-sink-op base build (which is exactly what mass scanning uses).",
+      "files_to_change": [
+        "/root/project/wp-bugbounty/.agents/skills/authoring-semgrep-rules/scripts/phparser/internal/taintscan/callgraph_relevance.go",
+        "/root/project/wp-bugbounty/.agents/skills/authoring-semgrep-rules/scripts/phparser/internal/taintscan/analysis_support.go"
+      ],
+      "generic_approach": "Parallelize the per-callable loops with a bounded worker pool (each *ForCallable is pure, writing one independent key); collect into sharded results then merge deterministically (sort keys) so the results JSON is byte-identical to the serial run. Leave indexCallInputConsumingCallables serial (shared recursive memo). Also skip the base-engine sql/file indexers that are reset+recomputed in clones (analysis_support.go:1039-1045) \u2014 base result is discarded (cheap but free).",
+      "regression_risk": "low",
+      "expected_effect": "~155s->~30-40s base build on 8 cores (action-relevance 77s->~12s); compounds with PERF-1.",
+      "confidence": "high",
+      "effort": "medium",
+      "verification_status": "confirmed_on_real_plugin"
+    },
+    {
+      "rank": 7,
+      "title": "PERF-4: replace per-callable stop-the-world ReadMemStats with sampled gauge; raise worker cap toward GOMAXPROCS",
+      "category": "performance",
+      "wp_vuln_class": "none",
+      "rationale": "Confirmed: analysis_callable.go:215/218 calls runtime.ReadMemStats per callable with a comment claiming '~1\u00b5s', but measured 22\u00b5s single-thread and 273\u00b5s under 8-goroutine contention (it stops-the-world, serializing workers). boundedAnalysisWorkers caps at 2 for pending>=128 (analysis_driver.go:985) and runWithContext forces workers=1 for call/output and <=2 for action (374/377/380) \u2014 so the heaviest batches run 1-2 wide on 8 cores. Even after PERF-1/2 make analysis cheap, wall-clock stays 3-4x off peak because 6 cores idle, and the STW serializes whatever workers exist.",
+      "files_to_change": [
+        "/root/project/wp-bugbounty/.agents/skills/authoring-semgrep-rules/scripts/phparser/internal/taintscan/analysis_callable.go",
+        "/root/project/wp-bugbounty/.agents/skills/authoring-semgrep-rules/scripts/phparser/internal/taintscan/analysis_driver.go"
+      ],
+      "generic_approach": "Background goroutine samples runtime.ReadMemStats into an atomic uint64 gauge every ~50-100ms (or check every K callables); the 3 GiB OOM backstop in analyzeCallableWithWarmStack reads the gauge instead of calling ReadMemStats inline. Then raise the boundedAnalysisWorkers cap and the runWithContext per-op overrides toward GOMAXPROCS. Keep OOM-backstop semantics. Pair with PERF-2 so transient heap per worker stays bounded.",
+      "regression_risk": "medium",
+      "expected_effect": "~3-4x analysis-phase wall-clock once PERF-1/2 land (unlocks 8-way parallelism); STW direct cost removed.",
+      "confidence": "high",
+      "effort": "medium",
+      "verification_status": "confirmed_on_real_plugin"
+    },
+    {
+      "rank": 8,
+      "title": "G-WHITELIST-DISPATCH: value-set guard tracker (strict in_array / array_key_exists / literal switch) before dynamic-dispatch & SQL-identifier sinks",
+      "category": "false_positive",
+      "wp_vuln_class": "RCE, SQLi",
+      "rationale": "Confirmed on w3-total-cache: Util_Installed::$engine() is reached only inside `if (in_array($engine,$allowed_engines,true))` over a 9-element string-literal allowlist, yet emitDynamicCallNameFinding (call_eval.go:53) gates only on context.CapabilityChecks and ignores value-set guards \u2014 3 of 8 unsafe-use findings (37.5%) are this single FP. Same root cause flags array_key_exists($dir,$allowed) before ORDER BY $dir. Soundness boundary validated: wp-google-map class.controller.php:146 uses method_exists with UNBOUNDED $operation \u2014 a real RCE the fix must keep flagged.",
+      "files_to_change": [
+        "/root/project/wp-bugbounty/.agents/skills/authoring-semgrep-rules/scripts/phparser/internal/taintscan/statement_walk.go",
+        "/root/project/wp-bugbounty/.agents/skills/authoring-semgrep-rules/scripts/phparser/internal/taintscan/call_eval.go",
+        "/root/project/wp-bugbounty/.agents/skills/authoring-semgrep-rules/scripts/phparser/internal/taintscan/guard_helpers.go"
+      ],
+      "generic_approach": "Add a value-set guard stack on analysisState (analogous to canonicalPathVariablesForTrueBranch / seedSelectorConditionAssignments) mapping varName->{literalSet,sound}, populated in StmtIf true-branch and StmtSwitch case bodies from (a) STRICT in_array($v,[string-literals],true), (b) array_key_exists($v,[string-literal-keyed map]), (c) switch($v) all-string-literal cases, (d) chained $v==='lit' || ... with default abort. New helper valueConstrainedToSafeLiteralSet(nameExpr) consulted in emitDynamicCallNameFinding (suppress) and at the tainted-sql-string identifier emit. STRICT in_array (3rd arg true) + string-only literals ONLY; never treat method_exists/is_callable/function_exists/property_exists as whitelists.",
+      "regression_risk": "medium",
+      "expected_effect": "Removes ~37.5% of unsafe-use FPs (3 w3tc dispatches) + ORDER-BY allowlist SQL FPs; canonical defensive-allowlist idiom no longer penalized.",
+      "confidence": "high",
+      "effort": "medium",
+      "verification_status": "confirmed_on_real_plugin"
+    },
+    {
+      "rank": 9,
+      "title": "U1+U7+fp-6: executable-capable file-write destination model (stop flagging cache/log writes as upload-RCE)",
+      "category": "false_positive",
+      "wp_vuln_class": "RCE",
+      "rationale": "Confirmed: file_put_contents->{0,1}, fwrite/fputs->{1} fire addUnauthorizedFileUploadFinding for ANY tainted arg (path OR content) with no php-capable-destination notion. Of 47 wp-request-file-upload findings, ~44 (94%) are non-executable cache/log/json writers (w3-total-cache 25, wp-retina-2x 12-13 debug-log fwrites, clearfy 7 cache renames); ZERO move_uploaded_file across the whole session. Meanwhile the ONE real RCE \u2014 w3tc writing Util_Request::get_string('newcontent') into WP_CONTENT_DIR/db-cluster-config.php \u2014 is emitted with identical rule/severity and buried. CRITICAL constraint (verifier-flagged): the naive 'gate on path-taint/extension' fix REGRESSES TestAnalyzeRootFindsUnauthenticatedFilePutContentsUpload and TestBuildEngineKeepsCapabilityCheckedWriteSinkSeed (both assert tainted-content->fixed .bin path fires). The real discriminator is content PROVENANCE ($_FILES upload content vs $_SERVER request-metadata-being-cached), not extension.",
+      "files_to_change": [
+        "/root/project/wp-bugbounty/.agents/skills/authoring-semgrep-rules/scripts/phparser/internal/taintscan/analysis_support.go",
+        "/root/project/wp-bugbounty/.agents/skills/authoring-semgrep-rules/scripts/phparser/internal/taintscan/call_eval.go",
+        "/root/project/wp-bugbounty/.agents/skills/authoring-semgrep-rules/scripts/phparser/internal/taintscan/builtin_models.go"
+      ],
+      "generic_approach": "Thread the tainted-arg ROLE (path|content) and destination expr into addUnauthorizedFileUploadFinding and its call sites (call_eval.go:355/919) via fileUploadSinkArgRoles(name). Add safeNonExecutableWriteDestination(destExpr): resolve suffix via literalStringForCallable WITH constant-define resolution (W3TC_FILE_DB_CLUSTER_CONFIG = WP_CONTENT_DIR.'/db-cluster-config.php'); suppress/downgrade ONLY when the content index is tainted AND the destination resolves to a known non-executable suffix {html,htm,css,js,json,xml,txt,log,csv,md,map,svg,gz,_meta} AND the content source is $_SERVER request-metadata (NOT $_FILES) \u2014 preserving the two corpus tests. Add an executableUpload severity flag (U7) when the destination is .php/.phtml/.phar or the basename/extension is request-controlled (double-extension/null-byte). Keep all path-argument sinks (move_uploaded_file/copy/rename arg0) always firing.",
+      "regression_risk": "medium",
+      "expected_effect": "~32-44 of 47 file-upload FPs removed (w3tc ~24, wp-retina ~12); the real .php write ranks to the top via executableUpload. Must keep 57/57.",
+      "confidence": "high",
+      "effort": "medium",
+      "verification_status": "confirmed_on_real_plugin"
+    },
+    {
+      "rank": 10,
+      "title": "FW-5: add common WP/WooCommerce sanitizers/escapers to the HTML-safe set",
+      "category": "false_positive",
+      "wp_vuln_class": "none (reflected/stored-XSS noise)",
+      "rationale": "Confirmed: isHTMLOutputSafeFunc (builtin_models.go:166) lacks wc_clean (457 plugins, recursive sanitize_text_field), esc_xml (22), tag_escape (63), sanitize_hex_color (146), wp_filter_nohtml_kses (39) \u2014 all genuine escapers, all flagged as reflected XSS in the engine's highest-volume rule. Corpus-safe verified (ninja-forms uses sanitize_hex_color but its corpus finding fires on different lines).",
+      "files_to_change": [
+        "/root/project/wp-bugbounty/.agents/skills/authoring-semgrep-rules/scripts/phparser/internal/taintscan/builtin_models.go"
+      ],
+      "generic_approach": "Add to isHTMLOutputSafeFunc (XSS-only set, so SQL/path/SSRF unaffected): esc_xml, tag_escape, sanitize_hex_color, sanitize_hex_color_no_hash, sanitize_mime_type, wp_filter_nohtml_kses, antispambot, number_format, and WooCommerce-idiom helpers wc_clean, wc_sanitize_tooltip, wc_sanitize_textarea, wc_strtolower, wc_sanitize_taxonomy_name. Match by name idiom only.",
+      "regression_risk": "low",
+      "expected_effect": "Removes reflected/stored-XSS FPs across 450+ plugins using wc_clean and 140+ using sanitize_hex_color; 57/57 preserved.",
+      "confidence": "high",
+      "effort": "small",
+      "verification_status": "confirmed_fixture"
+    },
+    {
+      "rank": 11,
+      "title": "TRIAGE-5: most-permissive cluster-merge access (stop burying unauth bugs as capability_checked)",
+      "category": "triage/correctness",
+      "wp_vuln_class": "Missing-auth/IDOR",
+      "rationale": "Confirmed on a fixture: a shared include-sink reached by BOTH wp_ajax_nopriv (unauth) and an admin handler merges to access=capability_checked (deriveAccess context_helpers.go:503 returns capability_checked FIRST whenever any merged member has a cap check), scoring the unauth LFI at 50 and tiering it LOW. This directly violates the non-negotiable 'do not drop/bury any unauth TP', and the risk GROWS as source-collapse expands to reflected XSS. Scope nuance (verifier): sensitive-action/file-delete are already protected by suppression; this bites path-transversal, request-path-read-delete, tainted-sql-string, record-read, stored-xss, reflected-xss.",
+      "files_to_change": [
+        "/root/project/wp-bugbounty/.agents/skills/authoring-semgrep-rules/scripts/phparser/internal/taintscan/analysis_driver.go",
+        "/root/project/wp-bugbounty/.agents/skills/authoring-semgrep-rules/scripts/phparser/internal/taintscan/context_helpers.go"
+      ],
+      "generic_approach": "In mergeFindings (analysis_driver.go:98), after mergeFlowContext, override out.Extra.Context.Access with the member maximizing accessTierWeight(access) (most-permissive), independent of the union-then-derive result; pick the representative likewise. Keep the union of guards for evidence display only so a union containing an unauth path is never reported as capability_checked.",
+      "regression_risk": "medium",
+      "expected_effect": "Prevents masking of every multi-entry sink's unauth path; protects the bounty-relevant class that all the collapse work would otherwise endanger.",
+      "confidence": "high",
+      "effort": "medium",
+      "verification_status": "confirmed_fixture"
+    },
+    {
+      "rank": 12,
+      "title": "fn-ssrf: new SSRF sink-op (request URL into wp_remote_*/curl_setopt(CURLOPT_URL)/file_get_contents)",
+      "category": "false_negative_class",
+      "wp_vuln_class": "SSRF",
+      "rationale": "Confirmed entirely unmodeled: wp_remote_get/post/request are SOURCES only (builtin_models.go:94, consumed in the 'call' batch), never sinks; curl_setopt/CURLOPT has ZERO non-test references; no 'ssrf' op in defaultSinkOpBatches. esc_url_raw/sanitize_url are pass-through propagators, NOT SSRF sanitizers (do not block 169.254.169.254). ~1500 tree files call wp_remote_*/curl on a $variable URL; engine emits 0 SSRF. Real instance: clearfy todo_cdn.php:268 wp_remote_get($_GET['url']). Top Patchstack/Wordfence bounty class with zero coverage. Source and sink evaluate in different batches so no conflict.",
+      "files_to_change": [
+        "/root/project/wp-bugbounty/.agents/skills/authoring-semgrep-rules/scripts/phparser/internal/taintscan/builtin_models.go",
+        "/root/project/wp-bugbounty/.agents/skills/authoring-semgrep-rules/scripts/phparser/internal/taintscan/analysis_driver.go",
+        "/root/project/wp-bugbounty/.agents/skills/authoring-semgrep-rules/scripts/phparser/internal/taintscan/call_eval.go",
+        "/root/project/wp-bugbounty/.agents/skills/authoring-semgrep-rules/scripts/phparser/internal/taintscan/analysis_support.go"
+      ],
+      "generic_approach": "Add 'ssrf' to defaultSinkOpBatches + allowsSinkOp + a relevance index. Add builtinSSRFSinkByFunc mapping wp_remote_get/post/request/wp_safe_remote_* (arg0), file_get_contents/fopen (arg0 when value is URL-like / http-prefixed \u2014 must NOT double-emit with the existing path sink), and curl_setopt(arg2 when arg1 const==CURLOPT_URL). Dispatch alongside builtinSinkByFunc (call_eval.go:362) under allowsSinkOp('ssrf'). Emit addUnauthorizedSSRFFinding under rule wp-request-ssrf. Do NOT treat esc_url_raw/sanitize_url as sanitizers.",
+      "regression_risk": "low",
+      "expected_effect": "New critical class; first confirmed TP at clearfy todo_cdn.php:268; scans ~1500 currently-silent files.",
+      "confidence": "high",
+      "effort": "medium",
+      "verification_status": "confirmed_on_real_plugin"
+    },
+    {
+      "rank": 13,
+      "title": "FW-4: model printf/vprintf/wp_die/print_r as output sinks (and fix wp_die's guard misclassification)",
+      "category": "false_negative_class",
+      "wp_vuln_class": "Reflected/Stored XSS",
+      "rationale": "Confirmed: output sinks are only StmtEcho/ExprPrint plus disclosure funcs; printf/vprintf/print_r/var_dump appear NOWHERE as sinks. Worse, wp_die is registered as a ValidationCheck guard (wordpress_context.go:18), so wp_die($_GET[...]) is a DOUBLE false-negative (unanalyzed as sink AND suppressed as a guard) even though the default handler renders the message as unescaped HTML. 54 plugins call printf with a direct $_GET/$_POST/$_REQUEST arg.",
+      "files_to_change": [
+        "/root/project/wp-bugbounty/.agents/skills/authoring-semgrep-rules/scripts/phparser/internal/taintscan/builtin_models.go",
+        "/root/project/wp-bugbounty/.agents/skills/authoring-semgrep-rules/scripts/phparser/internal/taintscan/call_eval.go",
+        "/root/project/wp-bugbounty/.agents/skills/authoring-semgrep-rules/scripts/phparser/internal/taintscan/wordpress_context.go"
+      ],
+      "generic_approach": "Add directOutputFuncArgIndexes(name) (printf->all args incl format; vprintf->[0,1]; wp_die->[0]; print_r->[0] when arg1 is not literal true; var_dump->all) and hook it in evalFuncCall (call_eval.go:307) under allowsSinkOp('output'): call addReflectedRequestOutputFinding + addPersistentOutputFinding on each indexed arg. Reuse numericSafe so printf('%d',...) is not flagged. Keep wp_die's early-exit guard behavior for control flow but ALSO treat its message arg as an output sink.",
+      "regression_risk": "low",
+      "expected_effect": "Recovers a whole reflected/stored-XSS sink family across 50+ plugins; fixes wp_die double-FN.",
+      "confidence": "high",
+      "effort": "small",
+      "verification_status": "confirmed_fixture"
+    },
+    {
+      "rank": 14,
+      "title": "FW-2: facade request sources (Input::get/post, Request::post/query)",
+      "category": "false_negative_class",
+      "wp_vuln_class": "Reflected XSS / SQLi / Missing-auth",
+      "rationale": "Confirmed cleanest of the framework set: isRequestGetterStaticCall (builtin_models.go:132) matches only method 'get' on {request,get,post,util_request}; Input::post/get/query and className 'input' are unhandled. Two real Tutor LMS (100k+ installs) sites confirmed (Input::post('order_id') CourseMetaGenerator.php:684, Input::get('rest_route') tutor-general-functions.php:1202). Input::get 224 / Input::post 241 occurrences tree-wide. Pure facade-name idiom, no plugin slugs.",
+      "files_to_change": [
+        "/root/project/wp-bugbounty/.agents/skills/authoring-semgrep-rules/scripts/phparser/internal/taintscan/builtin_models.go"
+      ],
+      "generic_approach": "isRequestGetterStaticCall: method 'get' -> classNames {request,get,post,input,util_request}; add methods post/input/query -> classNames {request,input,get,post}. Minor residual risk: a plugin defining its own non-request Input/Request class with get/post.",
+      "regression_risk": "low",
+      "expected_effect": "Restores recall for Laravel/wpfluent facade input across major plugins (Tutor LMS et al.).",
+      "confidence": "high",
+      "effort": "small",
+      "verification_status": "confirmed_on_real_plugin"
+    },
+    {
+      "rank": 15,
+      "title": "U2+U3: archive-extraction sinks (ZipArchive::extractTo, unzip_file destination, PclZip path)",
+      "category": "false_negative_class",
+      "wp_vuln_class": "RCE",
+      "rationale": "Confirmed: fileUploadSinkArgIndexesByMethod models put_contents/move/copy/extract but NOT extractto (verified builtin_models.go:490-501); unzip_file is {0} (source archive) only, missing the destination $to (verified :392). $zip->extractTo($_POST['dir']) and unzip_file(download_url(...),$_POST['target']) both return 0 findings. 80 plugins use extractTo, 74 use unzip_file \u2014 the bulk of archive-extraction/zip-slip RCE surface (importers, backup/restore, theme installers).",
+      "files_to_change": [
+        "/root/project/wp-bugbounty/.agents/skills/authoring-semgrep-rules/scripts/phparser/internal/taintscan/builtin_models.go"
+      ],
+      "generic_approach": "Add case 'extractto': []int{0} to fileUploadSinkArgIndexesByMethod and to fileUploadSinkMethodMatchesMethodCall gated by archiveLikeReceiverMethodCall (archiveLikeIdentifier already matches 'zip'/'archive'). Change unzip_file to []int{0,1} (treat $to as destination/path sink). For PclZip extract(PCLZIP_OPT_PATH,$dest), scan the arg following the PCLZIP_OPT_PATH constant as the destination.",
+      "regression_risk": "low",
+      "expected_effect": "Opens zip-slip/archive-RCE detection across ~80+74 plugins currently invisible.",
+      "confidence": "high",
+      "effort": "small",
+      "verification_status": "confirmed_fixture"
+    },
+    {
+      "rank": 16,
+      "title": "TRIAGE-3 + TRIAGE-4 + fp-8: rule-precision weighting + confidence tier (depends on TRIAGE-1)",
+      "category": "triage",
+      "wp_vuln_class": "none",
+      "rationale": "Confirmed: FindingExploitabilityScore has no per-rule precision term, so a noisy reflected XSS ties a high-precision SQLi at equal access (cfdb7 both =600). No confidence tier separates capability_checked (still the largest tier) and heuristic *-surface findings from real unauth bugs; the flat -150 surface penalty lets an unauth surface (850) outrank a PROVEN nonce_only flow (600). POST+capability_checked reflected XSS is admin self-XSS that should demote while GET/REQUEST-sourced must stay full-rank. (Figures partly stale post-deploy, but mechanism holds.)",
+      "files_to_change": [
+        "/root/project/wp-bugbounty/.agents/skills/authoring-semgrep-rules/scripts/phparser/internal/taintscan/helpers.go",
+        "/root/project/wp-bugbounty/.agents/skills/authoring-semgrep-rules/scripts/phparser/cmd/taint-scan/main.go"
+      ],
+      "generic_approach": "Add rulePrecisionWeight(checkID) (+60 sql/priv-mutation/file-delete-upload/deser/unsafe-use, +30 path/record-read, +0 reflected/stored XSS) into FindingExploitabilityScore, smaller than one access-tier gap (breaks only intra-tier ties). Emit confidence: HIGH = proven flow AND access in {unauthenticated,nonce_only,permission_callback}; MEDIUM = proven authenticated/unknown/admin; LOW = capability_checked OR -surface suffix. Make -surface a hard sub-tier below any proven flow. Demote POST+capability_checked reflected XSS via source-method on the origin (keep GET/REQUEST full-rank). Never drops findings.",
+      "regression_risk": "low",
+      "expected_effect": "Floats high-precision unauth classes above admin self-XSS noise; tiering removes capability_checked + surface heuristics from the default view with zero unauth loss.",
+      "confidence": "high",
+      "effort": "medium",
+      "verification_status": "confirmed_on_real_plugin"
+    },
+    {
+      "rank": 17,
+      "title": "FW-1: framework request-bag method accessors ($request->get/input/query/post, PSR-7 getParsedBody/getQueryParams/getParam)",
+      "category": "false_negative_class",
+      "wp_vuln_class": "Reflected XSS / SQLi / Missing-auth",
+      "rationale": "Confirmed: isRequestGetterMethod (builtin_models.go:101) lists only snake_case WP names; isRequestGetterMethodCall (:111) only treats 'all' as receiver-shaped, so $request->get/input/query/post, getParsedBody, getParam are all missed (ninja-tables, meta-box, smart-slider-3 confirmed). Verifier corrected the headline count (var/property receiver ~33 plugins, but PSR-7 names broaden to 100+: getParsedBody 42, getQueryParams 47, ->getParam 16). FluentForm/Ninja/Slim-PSR7 ecosystems currently invisible end-to-end.",
+      "files_to_change": [
+        "/root/project/wp-bugbounty/.agents/skills/authoring-semgrep-rules/scripts/phparser/internal/taintscan/builtin_models.go"
+      ],
+      "generic_approach": "(a) Add unambiguous PSR-7 incoming names (getparsedbody, getqueryparams, getbodyparams, getqueryparam, getbodyparam) to isRequestGetterMethod \u2014 these names exist only on ServerRequest. (b) In isRequestGetterMethodCall generalize the 'all'-receiver check into isRequestReceiverShape(call.Var) matching receiver vars {request,req,http_request,wp_request} or property leaves {request,req,query,headers,cookies,post,input}, gating the generic method set {get,input,query,post,getparam,getparams,getsafe,cookie}. Keep snake_case WP names unconstrained.",
+      "regression_risk": "medium",
+      "expected_effect": "Makes 100+ FluentForm/Ninja/PSR-7 plugins analyzable; pairs with FW-2/FW-3 for REST/AJAX controllers. Watch $request->post collisions with HTTP-client objects.",
+      "confidence": "high",
+      "effort": "small",
+      "verification_status": "confirmed_on_real_plugin"
+    },
+    {
+      "rank": 18,
+      "title": "ipc-1: index PHP traits (trait method bodies + use-Trait merge)",
+      "category": "interprocedural/false_negative_class",
+      "wp_vuln_class": "Reflected XSS, SQLi, Missing-auth, file ops",
+      "rationale": "Confirmed structural blindness: collectMethodCallables (callable_indexing.go:870) has a StmtClass arm but StmtTrait hits default (only flattens bodies, registers no method:: callable); no StmtTraitUse/classTraits handling exists. A/B fixture is decisive: byte-identical wp_ajax_nopriv SQLi handler = 0 findings in a trait vs 2 in a class. 232/808 plugins declare traits, ~30-33 have source+sink trait bodies, and this also fixes array($this,'traitMethod') dispatch (689 plugins use array($this,...) callbacks). Note: the cited responsive-lightbox echo is numeric-safe (weak TP example) but the class is real.",
+      "files_to_change": [
+        "/root/project/wp-bugbounty/.agents/skills/authoring-semgrep-rules/scripts/phparser/internal/taintscan/callgraph_relevance.go",
+        "/root/project/wp-bugbounty/.agents/skills/authoring-semgrep-rules/scripts/phparser/internal/taintscan/analysis_support.go"
+      ],
+      "generic_approach": "In collectMethodCallables add case *ast.StmtTrait registering each StmtClassMethod as method::TraitName::name (mirroring StmtClass). Add a collectClassTraitUses pass scanning each StmtClass body for *ast.StmtTraitUse (resolve names via resolveClassNameWithAliases) into e.classTraits. During indexing, merge trait methods into each using class (class-defined wins; transitive for traits-using-traits; honor adaptation alias/precedence minimally). lookupMethodKey/ensureRuntimeMethodCallable need no change once e.methods[Class] is populated.",
+      "regression_risk": "low",
+      "expected_effect": "Recovers entire flow classes in traits across 232 plugins; fixes the dominant array($this,'m') dispatch shape when m is a trait method.",
+      "confidence": "high",
+      "effort": "medium",
+      "verification_status": "confirmed_on_real_plugin"
+    },
+    {
+      "rank": 19,
+      "title": "fn-redirect-header: open-redirect + HTTP header/CRLF injection sinks",
+      "category": "false_negative_class",
+      "wp_vuln_class": "Open redirect",
+      "rationale": "Confirmed class-unmodeled: wp_redirect/wp_safe_redirect appear nowhere as sinks; header() is only a download-disposition heuristic. ~1032-1125 tree files call wp_redirect/header('Location:'.) on a $variable; 0 findings. Verifier caveat: the cited instances are mostly wp_safe_redirect (host-validated, low/non-exploitable) and a sanitize_text_field-wrapped relative path \u2014 the genuine high-severity yield is raw wp_redirect($_GET[..]) / raw header('Location:'.$_GET), which are unmodeled. So implement but weight severity by sink (raw vs safe).",
+      "files_to_change": [
+        "/root/project/wp-bugbounty/.agents/skills/authoring-semgrep-rules/scripts/phparser/internal/taintscan/builtin_models.go",
+        "/root/project/wp-bugbounty/.agents/skills/authoring-semgrep-rules/scripts/phparser/internal/taintscan/analysis_driver.go",
+        "/root/project/wp-bugbounty/.agents/skills/authoring-semgrep-rules/scripts/phparser/internal/taintscan/call_eval.go"
+      ],
+      "generic_approach": "Add builtinHeaderRedirectSinkByFunc: wp_redirect(arg0)->wp-open-redirect (high); wp_safe_redirect(arg0)->lower severity; header(arg0 when literal begins 'Location:'/'Refresh:'->open-redirect, else ->wp-header-injection/CRLF). New 'redirect'/'header' sink op in defaultSinkOpBatches, dispatched next to builtinSinkByFunc (call_eval.go:362). Treat esc_url/esc_url_raw/wp_validate_redirect as sanitizers for the redirect sub-class ONLY (not raw header()).",
+      "regression_risk": "low",
+      "expected_effect": "Adds open-redirect + CRLF response-splitting coverage; real high-severity TPs at raw wp_redirect/header sites.",
+      "confidence": "high",
+      "effort": "medium",
+      "verification_status": "confirmed_fixture"
+    },
+    {
+      "rank": 20,
+      "title": "ipc-2: seed reflected-XSS/output sinks through output helpers (echo/print on a parameter)",
+      "category": "false_negative_class",
+      "wp_vuln_class": "Reflected XSS",
+      "rationale": "Confirmed: callableHasDirectSink (callgraph_relevance.go:6061) treats echo/print as a sink ONLY when the SAME callable reads the request/record, whereas SQL/file/delete builtins seed unconditionally. A pure output helper `function render($x){ echo $x; }` is never seeded (fixtures z1/z1m = 0). Reflected XSS is the #1 finding class (186/430); the common echo-via-render/template-helper shape is entirely missed, and the missed flows skew toward higher-value unauthenticated handlers. An outputSinkRelevantUseOrders index already exists for forward propagation but is never used to seed.",
+      "files_to_change": [
+        "/root/project/wp-bugbounty/.agents/skills/authoring-semgrep-rules/scripts/phparser/internal/taintscan/callgraph_relevance.go",
+        "/root/project/wp-bugbounty/.agents/skills/authoring-semgrep-rules/scripts/phparser/internal/taintscan/analysis_support.go"
+      ],
+      "generic_approach": "(a) In callableHasDirectSink treat StmtEcho/ExprPrint whose argument value-root is a function parameter as an output-sink seed. (b) Add isOutputRelevantReverseCaller (analogous to isSQLRelevantReverseCaller) so the backward climb seeds output helpers reached by a request-carrying call, reusing outputSinkRelevantUseOrders. (c) Bound by requestReachableCallables (directSinkSeedAllowed) and keep the existing reflectedOutputOrigins escaper + capability-context filters so FP volume stays controlled.",
+      "regression_risk": "medium",
+      "expected_effect": "Recovers output-via-helper reflected XSS (the #1 class); must validate FP volume does not balloon on a 50-plugin sample.",
+      "confidence": "high",
+      "effort": "medium",
+      "verification_status": "confirmed_fixture"
+    },
+    {
+      "rank": 21,
+      "title": "fn-typejuggle: loose == / non-strict in_array on request tokens vs secrets (auth bypass)",
+      "category": "false_negative_class",
+      "wp_vuln_class": "PHP type-juggling auth bypass",
+      "rationale": "Confirmed unmodeled: hash_equals is recognized only as a GUARD; the vulnerable counterpart never fires. The AST already splits ExprBinaryOpEqual vs ExprBinaryOpIdentical (statement_walk.go:427-429) and pairs guard var/value (literalEqualityGuardVariableAndValue:537). Two real bypasses confirmed (seedprod_token == $api_key gating a settings write; cmp_bypass == get_option gating maintenance bypass). ~52 files loose-compare a request token/secret; ~338 call in_array($_GET/POST,..) without strict. Benign numeric `== 1` and `in_array($role,[...])` correctly stay silent, so precision-gating is satisfiable.",
+      "files_to_change": [
+        "/root/project/wp-bugbounty/.agents/skills/authoring-semgrep-rules/scripts/phparser/internal/taintscan/statement_walk.go",
+        "/root/project/wp-bugbounty/.agents/skills/authoring-semgrep-rules/scripts/phparser/internal/taintscan/wordpress_context.go"
+      ],
+      "generic_approach": "In condition/guard analysis, when ExprBinaryOpEqual/NotEqual (NOT Identical) has one operand a request source and the other derived from get_option/get_*_meta/*_password|*_hash or a secret/token/key/hash/pass-named variable, emit wp-auth-bypass-loose-comparison; similarly in_array($requestSource,$arr) with absent/false 3rd arg gating control flow. Gate strictly to secret-shaped right operand to avoid flagging numeric flags. Reuse hash_equals guard plumbing + the loose/strict AST split.",
+      "regression_risk": "medium",
+      "expected_effect": "New auth/authorization-bypass primitive class; 2 confirmed real bypasses, gated to keep precision.",
+      "confidence": "high",
+      "effort": "medium",
+      "verification_status": "confirmed_on_real_plugin"
+    },
+    {
+      "rank": 22,
+      "title": "U4+U5: upload type-validation bypass (#16) \u2014 test_type=>false overrides and upload_mimes filters adding php",
+      "category": "modeling/false_negative_class",
+      "wp_vuln_class": "RCE",
+      "rationale": "Confirmed: wp_handle_upload/_sideload model only arg0 ($file array); the override array (arg1) is never inspected (test_type absent from the engine), so a test_type=>false call is indistinguishable from a default-validated one (37 plugins use overrides). coreUploadValidationFilters has exactly one entry (wp_check_filetype_and_ext); upload_mimes callbacks adding $mimes['php'] are invisible (108 plugins register upload_mimes filters). These are recurring real CVE patterns that turn the media library into a webshell vector.",
+      "files_to_change": [
+        "/root/project/wp-bugbounty/.agents/skills/authoring-semgrep-rules/scripts/phparser/internal/taintscan/builtin_models.go",
+        "/root/project/wp-bugbounty/.agents/skills/authoring-semgrep-rules/scripts/phparser/internal/taintscan/call_eval.go",
+        "/root/project/wp-bugbounty/.agents/skills/authoring-semgrep-rules/scripts/phparser/internal/taintscan/upload_validation_surface.go"
+      ],
+      "generic_approach": "Add uploadOverrideDisablesTypeCheck(call) inspecting the override-array literal for 'test_type'=>false / 'test_mimes'=>false or a 'mimes' entry whose key/value matches php|phtml|phar|pht|phps|shtml; tag the file-upload finding high-severity when true (downgrade default-validated). Extend coreUploadValidationFilters with upload_mimes/mime_types/image_sideload_extensions + executableMimeAddInCallback(callback) walking the callback body for a return/array-write whose key/value is a dangerous extension. Key strictly on the extension string, never plugin identity; benign svg stays silent.",
+      "regression_risk": "low",
+      "expected_effect": "Boosts RCE-grade uploads, downranks default-validated ones; adds the most common static type-validation-weakening misconfig across 100+ plugins.",
+      "confidence": "high",
+      "effort": "medium",
+      "verification_status": "confirmed_fixture"
+    },
+    {
+      "rank": 23,
+      "title": "FW-3: ArrayAccess request reads ($request['id']) on request-shaped params",
+      "category": "false_negative_class",
+      "wp_vuln_class": "Reflected XSS / SQLi / Missing-auth",
+      "rationale": "Confirmed: ExprArrayDimFetch (expression_eval.go:60) only treats superglobal roots as sources, so $request['id'] (semantically == get_param on WP_REST_Request, which implements ArrayAccess) is missed while $request->get_param('id') is found. The single most common REST-handler input idiom. Trickiest to land precisely: $request[ matches 245 plugins / 9107 occurrences but is frequently a LOCAL array (wp_remote_get(...)['body'], array literals), so a blunt source over-taints heavily \u2014 must param-name+type-gate.",
+      "files_to_change": [
+        "/root/project/wp-bugbounty/.agents/skills/authoring-semgrep-rules/scripts/phparser/internal/taintscan/expression_eval.go"
+      ],
+      "generic_approach": "In the ExprArrayDimFetch case: when typed.Dim != nil and typed.Var is a request-shaped callable parameter \u2014 new helper isRequestShapedParamVar(typed.Var, s.current) gated on the param name in {request,req,wp_rest_request} and/or ParamTypes hint containing request/WP_REST_Request, AND not locally reassigned to an array literal \u2014 return makeOriginSet(s.makeSourceOrigin(typed)). Param-name+type gating keeps local-array $request reads from over-tainting.",
+      "regression_risk": "medium",
+      "expected_effect": "Covers the dominant REST input idiom; pairs with FW-1. Land carefully \u2014 over-taint risk is the highest of the framework set.",
+      "confidence": "medium",
+      "effort": "medium",
+      "verification_status": "confirmed_fixture"
+    },
+    {
+      "rank": 24,
+      "title": "PERF-5/PERF-6: share batch-independent context/reachability indexes across the 9 clones; trim wasted fixpoint passes",
+      "category": "performance",
+      "wp_vuln_class": "none",
+      "rationale": "Code-reasoned (not in the verified-4 but consistent with PERF-1..4): cloneEngineForOptions recomputes collectWordPressFlowContext / indexRequestReachableCallables / indexRequestOriginReachableCallables per clone (9x), though they contain no allowedSinkOps reference (batch-independent). Fixpoint also runs a full ~37s zero-change confirmation pass (read pass2 changed=false) and uses reflect.DeepEqual on whole summaries/maps. Largely subsumed by PERF-1 (cheap re-analysis), so lower priority, but the clone-sharing removes ~10-15s + allocation churn per full run.",
+      "files_to_change": [
+        "/root/project/wp-bugbounty/.agents/skills/authoring-semgrep-rules/scripts/phparser/internal/taintscan/analysis_support.go",
+        "/root/project/wp-bugbounty/.agents/skills/authoring-semgrep-rules/scripts/phparser/internal/taintscan/analysis_driver.go",
+        "/root/project/wp-bugbounty/.agents/skills/authoring-semgrep-rules/scripts/phparser/internal/taintscan/callgraph_relevance.go"
+      ],
+      "generic_approach": "Compute collectWordPressFlowContext + request-reachability ONCE in buildBaseEngineForSinkOps; clones reference the read-only results (treat immutable / copy-on-write). Keep markRelevantCallables per-batch but seed from shared base reverse-reachability. Replace reflect.DeepEqual (analysis_driver.go:446,519-523) with the existing structural fingerprints; give the action batch a conservative findings-stable early-stop (stable>=2, no storage/caller churn). Validate by diffing results JSON across all 21 rules on 20 plugins (must be identical).",
+      "regression_risk": "medium",
+      "expected_effect": "~10-15s/full-run + reduced allocation churn; eliminates a ~37s zero-change confirmation pass per large batch.",
+      "confidence": "medium",
+      "effort": "medium",
+      "verification_status": "code-reasoned"
+    },
+    {
+      "rank": 25,
+      "title": "ipc-3: make backward relevance climb transitive through pass-through forwarders",
+      "category": "false_negative_class",
+      "wp_vuln_class": "SQLi, LFI, file delete/upload, missing-auth",
+      "rationale": "Confirmed with an isolating control: isSQLRelevantReverseCaller (callgraph_relevance.go:5595) climbs only when the callee exposes a LOCAL sink-relevant param (sqlSinkRelevantUseOrders is purely local), so a single pure forwarder `function disp($v){ leaf($v); }` severs the chain and prunes the source-bearing entrypoint (o1 2-hop direct = 2 findings; o3/k1 with one forwarder hop = 0). The call batch already uses the TRANSITIVE callableConsumesCallInput \u2014 the asymmetry is the fix template. Recovers controller->service->repository chains. Large effort and widens the relevant set (watch the perf cliff), so sequence AFTER the perf trio.",
+      "files_to_change": [
+        "/root/project/wp-bugbounty/.agents/skills/authoring-semgrep-rules/scripts/phparser/internal/taintscan/callgraph_relevance.go"
+      ],
+      "generic_approach": "Add a memoized engine pass (mirroring callableConsumesCallInput) computing sinkRelevantParamIndexes per op: param i is sink-relevant if used in a local sink OR forwarded (callSiteSuppliesRuntimeArgAtAnyConsumedParam) into a sink-relevant param of a callee. Have sqlRelevantParamIndexes/fileRelevantParamIndexes and isSQLRelevantReverseCaller/isActionRelevantReverseCaller consult it so the climb passes through forwarders. Keep the requestReachableCallables bound on directSinkSeedAllowed to cap cost.",
+      "regression_risk": "medium",
+      "expected_effect": "Recovers every >=3-hop and forwarded 2-hop request->sink chain for SQL/file/delete/upload (SQLi+file are already 80/430, all currently shallow-only).",
+      "confidence": "high",
+      "effort": "large",
+      "verification_status": "confirmed_fixture"
+    },
+    {
+      "rank": 26,
+      "title": "fn-secondorder-sql: persisted store->read into SQL/include sinks (cross-callable)",
+      "category": "false_negative_class",
+      "wp_vuln_class": "SQLi, LFI",
+      "rationale": "Confirmed: persistentRead origins are consumed only by addPersistentOutputFinding (output-only); originsCarryCurrentBatchStateInterest (call_eval.go:1212) returns false when all sources are persistentRead, suppressing cross-callable propagation in sql/include/call batches. Intra-callable store->read into SQL works, but cross-callable (update_option in one entrypoint, get_option->$wpdb->query in another) systematically drops the SQL sink. This is the classic second-order SQLi/LFI pattern and often the only path to an unauth-reachable bug. Ranked low because it is large+medium-risk (FP-storm) and the core stored-flow detector is inconsistent even for core meta in minimal shapes (per FW-6).",
+      "files_to_change": [
+        "/root/project/wp-bugbounty/.agents/skills/authoring-semgrep-rules/scripts/phparser/internal/taintscan/call_eval.go",
+        "/root/project/wp-bugbounty/.agents/skills/authoring-semgrep-rules/scripts/phparser/internal/taintscan/callgraph_relevance.go",
+        "/root/project/wp-bugbounty/.agents/skills/authoring-semgrep-rules/scripts/phparser/internal/taintscan/analysis_support.go"
+      ],
+      "generic_approach": "(1) In originsCarryCurrentBatchStateInterest stop treating persistentRead-only sources as uninteresting for sql/include/call batches. (2) Ensure sqlSinkRelevantUseOrdersForCallable + include relevance treat storage reads (get_option/get_*_meta/get_results columns) as relevant sink inputs (storageRead* indexes already keep such callables relevant). (3) Let addSinkFindings emit tainted-sql-string/path-transversal/unsafe-use for persistentRead origins. Keep numericSafe/pathSafe handling to avoid broadening FPs; validate no FP storm on a large clean plugin + 57/57.",
+      "regression_risk": "medium",
+      "expected_effect": "Extends SQLi/LFI to cross-request second-order variants (aligns with the 11 stored-XSS already using persisted-read machinery).",
+      "confidence": "medium",
+      "effort": "large",
+      "verification_status": "confirmed_fixture"
+    },
+    {
+      "rank": 27,
+      "title": "fn-phar + G-NUMERIC-GUARD + U6 + ipc-4/5: targeted small modeling additions",
+      "category": "modeling",
+      "wp_vuln_class": "RCE, Reflected XSS, SQLi, file delete",
+      "rationale": "Bundle of confirmed small wins with localized impact: (a) fn-phar \u2014 add image/exif phar-trigger funcs as path sinks (getimagesize, exif_read_data, imagecreatefromjpeg/png/gif/string) gated to non-static-prefix tainted paths; AVOID file_exists/is_file (ubiquitous ~6857 files + double as path guards). (b) G-NUMERIC-GUARD \u2014 recognize ctype_digit/is_numeric/anchored numeric preg_match guards as numericSafe proofs (fixture-confirmed 3 FPs). (c) U6 \u2014 apply a filesystem-like receiver guard to copy/move/put_contents method calls (wp-google-map $map_obj->copy FP). (d) ipc-4/5 \u2014 model __call/__callStatic and constant-folded $this->$m() dispatch (framework routers). Each is small; grouped to keep the top of the list focused on confirmed-high-impact items.",
+      "files_to_change": [
+        "/root/project/wp-bugbounty/.agents/skills/authoring-semgrep-rules/scripts/phparser/internal/taintscan/builtin_models.go",
+        "/root/project/wp-bugbounty/.agents/skills/authoring-semgrep-rules/scripts/phparser/internal/taintscan/path_guard_helpers.go",
+        "/root/project/wp-bugbounty/.agents/skills/authoring-semgrep-rules/scripts/phparser/internal/taintscan/call_eval.go",
+        "/root/project/wp-bugbounty/.agents/skills/authoring-semgrep-rules/scripts/phparser/internal/taintscan/callgraph_relevance.go"
+      ],
+      "generic_approach": "fn-phar: extend builtinSinkByFunc read/open list with the image/exif phar triggers (arg0, op 'read'), gated by exprMayProducePathLikeValue / not-static-prefix. G-NUMERIC: add numericProvenVariablesForTrueBranch(cond) in path_guard_helpers.go applying markNumericSafeOrigins in the proven scope. U6: extend fileUploadSinkMethodMatchesMethodCall with a filesystem-like receiver guard for copy/move/put_contents. ipc-4: in ExprMethodCall/StaticCall evaluator, fall back to __call/__callStatic mapping args into param1; ipc-5: resolve constant-folded $this->$m() via dynamicDispatchStringForCallable into a forward edge.",
+      "regression_risk": "medium",
+      "expected_effect": "Closes phar object-injection trigger surface (image/exif), removes numeric-guard FPs, removes method-name-collision FPs, connects framework magic/variable dispatch flows.",
+      "confidence": "medium",
+      "effort": "medium",
+      "verification_status": "confirmed_fixture"
+    }
+  ],
+  "dropped": [
+    {
+      "title": "TRIAGE-2: add reflected/stored XSS to source-collapse",
+      "reason": "REFUTED \u2014 already implemented in the working tree (verified: helpers.go:274-275 lists wp-reflected-xss-direct-request-output and stored-xss). The '430 rows / 9x clusters' evidence came from the stale Jun-5 live binary. Action reduces to rebuild/redeploy (rank 1), not new code."
+    },
+    {
+      "title": "fp-1 / G-TERNARY-COND: ternary condition-taint union",
+      "reason": "Already implemented (expression_eval.go:197 ExprTernary now returns If.union(Else); short ?: keeps Cond). Confirmed correct + 57/57. Folded into rank 1 (deploy)."
+    },
+    {
+      "title": "fp-3 / G-INTCAST-SQL: (int)/(float) cast numericSafe at SQL sink",
+      "reason": "Already implemented (cast case marks numericSafe; cfdb7 11->3, IDOR preserved). Folded into rank 1 (deploy)."
+    },
+    {
+      "title": "fp-4: isset()/empty() boolean-taint suppression",
+      "reason": "Already implemented (ExprIsset/ExprEmpty return empty originSet). Folded into rank 1 (deploy)."
+    },
+    {
+      "title": "fp-7: remote-response/file_get_contents as deserialization source flag",
+      "reason": "Deferred (not ranked top): genuine but lower-volume (~9/23 deser findings) MITM/SSRF-only noise; an ambientRemote origin flag is a reasonable follow-up but lower ROI than the ranked precision fixes. Revisit after rank 9/12 land. Not dropped for correctness \u2014 just below the cut line this pass."
+    },
+    {
+      "title": "G-CTX-HTML (#15): full context-aware HTML output (body/attr/JS/URL escaper retable)",
+      "reason": "PARTIAL \u2014 FN class is real (attribute-context sanitize_text_field) but verifier found it smaller than claimed (~4 files tree-wide on a strict heuristic; esc_js-outside-JS weak). The broad per-context escaper retable is a large feature with real new-FP risk. Defer; if pursued, use only the conservative downgrade-only slice (flip sanitize_text_field/sanitize_key inside a clearly-quoted attribute, default to current behavior when context is uncertain)."
+    },
+    {
+      "title": "FW-6: ACF/Meta Box/Carbon storage wrappers as read/write families",
+      "reason": "PARTIAL \u2014 modeling gap is real but payoff UNPROVEN: in fixtures the ACF flow AND the core update_post_meta->get_post_meta equivalent both produced 0 stored-XSS, so adding families would not yield findings until the cross-function stored-flow detector itself fires on realistic shapes. Counts also overstated (get_field 86 not 307). Deprioritize until rank 26 (second-order/persisted flow) is shown to fire."
+    },
+    {
+      "title": "TRIAGE-6: align downstream queue rank table with emitted rule taxonomy",
+      "reason": "Dependent on TRIAGE-1 (rank 5/16); once score/confidence/access_tier are emitted, the queue (manage_candidate_queue.py) should ingest them as the primary sort key and demote its divergent local rule table to a tie-breaker. Tracked as the consumer-side follow-up to rank 16, not an independent engine change."
+    }
+  ]
+}

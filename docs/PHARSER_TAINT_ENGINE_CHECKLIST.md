@@ -1,0 +1,419 @@
+# phparser Taint Engine Checklist
+
+Objective: make `phparser` perform direct taint analysis against real PHP ASTs so the repo no longer needs lowered synthetic PHP as the only way to recover request-to-sink traces.
+
+Current scope note:
+- The direct Go engine currently covers the path/LFI family well:
+  - `path-transversal`
+  - `request-path-read-delete`
+- The direct Go engine now also covers the first disclosure / missing-capability slice:
+  - `wp-request-record-read-to-output-without-cap-check`
+- The direct Go engine now also covers the first request-driven sensitive-action slice:
+  - `wp-request-sensitive-action-without-cap-check`
+- The direct Go engine now also covers the first raw SQL execution slice:
+  - `tainted-sql-string`
+- It does not yet provide full parity with the whole rule set in `bugbounty-note/semgrep/`.
+- The remaining rule-family coverage to port or model directly includes:
+  - `backdoor.yaml`
+  - `file-upload.yaml`
+  - `privilege-escalation.yaml` beyond the current record-read-to-output coverage
+  - `sqli.yaml`
+  - `unsafe-use.yaml`
+  - `xss.yaml`
+
+## Rules of the Road
+
+- Keep request-origin sources aligned with the Semgrep taint rules in `bugbounty-note/semgrep/`.
+- Do not add plugin-specific or CVE-specific detectors.
+- Emit real file and line locations, not synthetic lowered-file locations.
+- Validate against real vulnerable plugin trees under `bugbounty-note/wordpress/wp_install/plugins/`.
+- Treat persisted state as first-class flow, not a special case:
+  - WordPress storage APIs
+  - SQL/custom-table storage
+  - object and array-backed in-memory state
+- Treat WordPress execution flow and permission context as first-class analysis inputs:
+  - entrypoint families
+  - capability and auth gates
+  - nonce and request-validation gates
+  - callback and lifecycle dispatch
+
+## Phase 1: Direct Path Taint
+
+- [x] Create this checklist and migration objective.
+- [x] Add a direct taint scan package under `internal/`.
+- [x] Model request-origin sources from the Semgrep path/LFI rules:
+  - [x] `$_GET`, `$_POST`, `$_REQUEST`, `$_COOKIE`, `$_FILES`
+  - [x] selected `$_SERVER[...]` path/header inputs
+  - [x] REST request getters like `get_param()`, `get_query_params()`, `get_header()`
+- [x] Model generic propagation:
+  - [x] assignments
+  - [x] concatenation and `.=` 
+  - [x] array/property fetch propagation
+  - [x] common path transforms like `trim`, `ltrim`, `rtrim`, `substr`, `urldecode`, `rawurldecode`, `parse_url`, `wp_parse_url`, `str_replace`, `preg_replace`
+- [x] Model direct sinks:
+  - [x] `require`, `require_once`, `include`, `include_once`
+  - [x] `load_template(...)`
+  - [x] `file_get_contents`, `readfile`, `fopen`, `unlink`, `wp_delete_file`
+- [x] Add interprocedural summaries for:
+  - [x] tainted return values
+  - [x] tainted parameter-to-sink flow
+  - [x] source-to-sink flow inside callees
+
+## Phase 2: Real CVE Validation
+
+- [x] Validate direct hits on:
+  - [x] `geo-mashup__1.13.16`
+  - [x] `hide-my-wp__5.4.01`
+- [x] Confirm exact real sink locations:
+  - [x] `geo-query.php:128`
+  - [x] `models/Files.php:515`
+- [x] Add durable direct-engine tests under `phparser`.
+
+## Phase 3: Stateful Taint
+
+- [x] Add property-level object-state propagation.
+  - [x] Track `$this->prop`, `$obj->prop`, and nested array slots under object properties.
+  - [x] Preserve receiver-state flow across direct method calls and constructor propagation.
+  - [x] Preserve static-property state across method summaries and global fixpoint passes.
+  - [x] Distinguish specific properties from whole-object taint to avoid fake traces.
+    - fixed plain assignment reads so aliases keep structural subtrees without inheriting unrelated descendant origins
+- [x] Add array-slot state propagation.
+  - [x] Track taint for stable container families through nested property/array roots.
+  - [x] Preserve append-style state like `$x[] = $y` and compound updates like `.=` without fully dropping flow.
+  - [x] Materialize whole-request container taint at specific key-access sites such as `$post_data['key']`.
+    - keep distinct stable buckets such as `answers[*]` and `uploads[*]` separate during later wildcard compaction stages
+- [~] Add WordPress persistence summaries.
+  - [~] Options and site options:
+    - [x] `add_option` / `update_option` / `get_option`
+    - [x] `add_site_option` / `update_site_option` / `get_site_option`
+  - [x] Meta APIs:
+    - [x] `add_metadata` / `update_metadata` / `get_metadata`
+    - [x] `add_post_meta` / `update_post_meta` / `get_post_meta`
+    - [x] `add_user_meta` / `update_user_meta` / `get_user_meta`
+    - [x] `add_term_meta` / `update_term_meta` / `get_term_meta`
+  - [x] Post/content-backed state:
+    - [x] `wp_insert_post` / `wp_update_post` / `get_post`
+    - [x] serialized `post_content`, `post_excerpt`, and similar blob-style fields
+  - [x] Transients and cache-like state:
+    - [x] `set_transient` / `get_transient`
+    - [x] `set_site_transient` / `get_site_transient`
+  - [~] Preserve WordPress serialization boundaries:
+    - [x] `maybe_serialize`
+    - [x] `maybe_unserialize`
+    - [x] common JSON encode/decode boundaries used as storage wrappers
+- [~] Add SQL/custom-table persistence summaries.
+  - [x] Model write APIs:
+    - [x] `$wpdb->insert`
+    - [x] `$wpdb->update`
+    - [x] `$wpdb->replace`
+    - [x] query-style `INSERT` / `UPDATE` / `REPLACE`
+  - [x] Model read APIs:
+    - [x] `$wpdb->get_var`
+    - [x] `$wpdb->get_row`
+    - [x] `$wpdb->get_results`
+    - [x] query-style `SELECT`
+  - [~] Join writes to reads by stable table/column/key families when the schema is inferable from the AST.
+  - [x] Preserve serialized/blob columns such as `meta_value`, `option_value`, and plugin-owned JSON blobs by family.
+  - [x] Support custom table helpers that wrap `$wpdb` and return row objects or arrays.
+- [~] Add hook/callback dispatch summaries.
+  - [x] `do_action` / `add_action`
+  - [x] `apply_filters` / `add_filter`
+  - [x] callback arrays, static callbacks, and dynamic dispatch helpers
+- [~] Add state-aware revalidation on real CVE plugins.
+  - [x] Revalidate `forminator__1.44.2` through persisted upload-path state to `library/model/class-form-entry-model.php:1264`.
+    - [x] Real sink trace reaches `wp_delete_file(...)` from submission-side request state, not just delete-entry requests.
+    - [x] Current acceptance bar treats multiple real delete-entry sink contexts on the original plugin as sufficient completion for this case.
+    - [x] Optional precision follow-up closed by acceptance decision: exact upload-path carrier narrowing is not required for current Forminator completion.
+  - [ ] Revalidate other persistence-backed CVEs once the storage families above are implemented.
+    - latest direct reruns now hit the expected member-directory SQL paths:
+      - `ultimate-member__2.9.1` -> `includes/core/class-member-directory-meta.php:1072`
+      - `ultimate-member__2.8.2` -> `includes/core/class-member-directory-meta.php:859`
+    - the remaining follow-up here is corpus/workflow alignment, not the raw direct-engine sink reachability for these two Ultimate Member cases
+  - [x] Add explicit two-stage stored cross-request flow reporting.
+    - detect and report cases where:
+      - an unauthenticated or weakly-gated request stores attacker-controlled state
+      - a later privileged or admin-side workflow reads that stored state
+      - the later workflow reaches the real sink
+    - [x] keep the write-stage and trigger-stage permission context separate in the report instead of flattening them into one same-request trace
+      - direct findings now expose `extra.stored_write_context` when a persisted source carries a meaningfully different write-stage context than the trigger-side sink context
+      - durable synthetic regression added for unauthenticated option write -> capability-checked delete sink
+    - validate this on real WordPress CVE shapes like public submission/upload -> persisted entry/meta state -> later admin deletion/export/render action
+    - [x] current motivating example: `sureforms__1.7.3` now connects `inc/form-submit.php` to `admin/views/entries-list-table.php:684` as one stored two-stage chain
+      - latest direct rerun reaches the real `unlink(...)` sink from `inc/form-submit.php` request sources on the original plugin tree
+      - real SureForms findings now carry non-empty `stored_write_context`, so the write-stage REST submit context and the later admin delete context remain distinct in the report output
+
+## Phase 4: WordPress Flow / Permission Modeling
+
+- [~] Add WordPress entrypoint discovery.
+  - [x] `add_action('wp_ajax_...')` and `add_action('wp_ajax_nopriv_...')`
+  - [x] `register_rest_route(...)`
+  - [x] `admin_post_...` and `admin_post_nopriv_...`
+  - [x] shortcode callbacks
+  - [x] block render callbacks
+  - [x] front-controller hooks such as `template_redirect`, `init`, `parse_request`, `wp`
+  - [x] direct file-entry patterns used by plugins
+- [~] Add WordPress callback flow summaries.
+  - [x] connect `add_action` / `do_action`
+  - [x] connect `add_filter` / `apply_filters`
+  - [x] preserve callback arrays, static callbacks, and instance callbacks for registration mapping
+  - [x] preserve parent-registered instance callbacks that can dispatch to child overrides at runtime
+  - [x] preserve cached factory-return callbacks that return a registered handler from property-backed or static singleton class caches
+  - [x] resolve concatenated dynamic hook dispatch with placeholder matching for request-selected callbacks such as `do_action('plugin_' . Request::get(...))`
+  - [x] keep request context attached to registered handlers in the reported finding context
+  - [x] propagate outer public dispatcher context through internal action/filter buses so custom callbacks like `w3tc_ajax_*` inherit the surrounding `wp_ajax_*` access model instead of defaulting to `access=unknown`
+    - bounded W3 rerun now preserves `entrypoint=ajax:wp_ajax_w3tc_ajax` and `access=nonce_only` on the Bunny popup callbacks
+- [~] Add permission-context modeling.
+  - [~] auth state:
+    - [x] `is_user_logged_in`
+    - [x] `get_current_user_id`
+    - [x] logged-out vs logged-in request context
+  - [~] capability gates:
+    - [x] `current_user_can`
+    - [x] `user_can`
+    - [x] role/capability checks wrapped by plugin helpers
+  - [~] admin and privileged context helpers:
+    - [x] `is_admin`
+    - [x] `wp_doing_ajax`
+    - [x] REST `permission_callback`
+  - [x] mark flows as unauth, auth-only, or capability-gated where the gate is actually present
+- [~] Add request-validation modeling.
+  - [~] nonce checks:
+    - [x] `check_admin_referer`
+    - [x] `check_ajax_referer`
+    - [x] `wp_verify_nonce`
+  - [x] route/request validators that reject invalid input before the sink
+  - [x] distinguish nonce-only protection from true authorization
+- [~] Add permission-aware reporting.
+  - [x] emit whether the traced sink is reachable unauthenticated, authenticated, or capability-gated
+  - [x] emit the exact gate location when a capability or nonce check is present
+  - [x] keep “missing authorization” and “authorization bypass” style CVEs analyzable as flow problems, not only sink problems
+    - [x] request-selector -> record-read -> output without capability-check coverage
+    - [x] request-upload -> file write without capability-check coverage
+    - [x] request-driven sensitive state change or administrative action without capability-check coverage
+    - [x] broader authorization-bypass families beyond record disclosure
+      - direct weak-auth delete coverage for request-controlled paths reaching `unlink(...)` / `wp_delete_file(...)`
+- [x] Revalidate permission-sensitive CVEs on real plugin trees.
+  - [x] disclosure / missing-capability path in `post-smtp__3.6.0` at `Postman/PostmanEmailLogs.php:72`
+  - [x] REST route permission issues
+  - [x] AJAX `nopriv` vs privileged action confusion
+  - [x] shortcode/render callbacks reachable without expected capability checks
+    - [x] `acf-extended__0.9.1.1` now completes on the real plugin and reaches the original dynamic callback sink at `includes/modules/form/module-form-front-render.php:151`; the latest direct run reports real `render-callback-execution` findings with unauthenticated shortcode/AJAX context after pruning generic plain-parameter callback helpers and irrelevant reverse callers
+
+## Phase 5: Durable Direct-Engine Validation
+
+- [x] Add durable direct-engine tests under `phparser`.
+- [x] Add regression fixtures for:
+  - [x] WordPress option write/read flows
+  - [x] meta write/read flows
+  - [x] serialized SQL row write/read flows
+  - [x] object-property state handoff flows
+  - [x] static-property handoff across direct method calls
+  - [x] literal-driven factory return class inference
+  - [x] WordPress capability-gated vs unauth entrypoints
+  - [x] nonce-only gates vs real authorization gates
+  - [x] REST/AJAX callback flow
+- [x] Keep real CVE plugin validation separate from synthetic regression fixtures.
+  - [x] Add a separate direct-engine corpus comparator that writes its own per-case `taint-results.json` / `comparison.json` artifacts under `tmp/`.
+
+## Phase 6: Workflow Switch
+
+- [x] Add a repo-facing Go command that produces Semgrep-like JSON for direct taint findings.
+- [x] Compare direct-engine hits against existing corpus expectations.
+  - [x] Score cases as `match`, `miss`, or `not_comparable_yet` against `test/semgrep_bundle_corpus/corpus.json`.
+  - [x] Current state: `geo-mashup` and `post-smtp` match, `ultimate-member-cve-2025-0308` now hits the real member-directory SQL sink in direct scans but still scores `miss` in corpus compare because no single finding satisfies the manifest's existing source-string contract, and `hide-my-wp` is currently `not_comparable_yet` because its manifest coverage is lowered-specific.
+- [ ] Switch the default repo workflow away from lowered bundles only after the direct engine covers the confirmed regression cases.
+
+## Phase 7: Performance / State Explosion Control
+
+- [~] Keep the current direct engine and optimize it instead of reverting to broader but less precise earlier states.
+  - [x] Add direct CPU / heap profiling hooks to `cmd/taint-scan`.
+    - `-cpuprofile` and `-memprofile` are now available for real plugin scans.
+    - latest bounded W3 full-scan pprof shows the biggest remaining costs are parser startup, AST traversal allocation churn, and taint origin copying rather than a single late fixpoint pass.
+  - [x] Reuse parsed/indexed engine state across sink-op batches in one process instead of rebuilding the full engine for each batch.
+  - [x] Make the default no-`-sink-op` full scan run in grouped sink-family batches and merge the findings, so all sink families do not explode relevance in one giant fixpoint.
+  - [x] Emit per-batch pass diagnostics and stable finding fingerprints during grouped scans so the remaining slow phase is explicit in the logs.
+  - [x] Parallel callable analysis with worker-pool passes.
+  - [x] Static call-graph relevance pruning.
+  - [x] Worklist scheduling instead of unconditional full relevant rescans.
+  - [x] Sink-operation filtering (`read`, `open`, `delete`, `include`) for focused runs.
+  - [x] Keep `call`-sink relevance aligned with the real dynamic-callback sink condition so literal `call_user_func*` helpers do not seed unrelated callback trees.
+  - [x] Keep `call`-sink data-edge relevance aligned with later callback-relevant root usage so bookkeeping helpers do not pull recursive helper trees into the scan.
+  - [x] Keep `call`-sink direct seeding aligned with request reachability so dead dynamic callback helpers do not seed the whole scan.
+  - [~] Reader-aware invalidation:
+    - [x] storage-family reader invalidation
+    - [x] storage nested-path vs base-family invalidation split
+    - [x] static nested-path vs base-root invalidation split
+    - [x] invalidate by collapsed nested-path bucket instead of broad root where possible
+  - [~] Make cross-request writer seeding path-sensitive before broad family fallback.
+    - [x] index callable-level storage read buckets alongside storage families during relevance seeding
+    - [x] index syntax-level storage write buckets for option/meta/post-record style writes and DB wrapper payload arrays
+    - [x] merge stored-write flow context deterministically when duplicate source locations collapse into origin sets and taint summaries
+      - this is a stability prerequisite for the later param-path-sensitive filter relevance work, because it keeps write-stage context from oscillating across passes when the same stored source is merged through multiple paths
+    - [~] latest SureForms rerun after bucket seeding no longer wakes sibling cross-request writers just because they share a broad storage family, but the delete-only scan still keeps the payment subtree alive inside `Form_Submit::handle_form_entry`
+      - the remaining hot chain is now:
+        - `apply_filters( 'srfm_form_submit_data', $form_data )`
+        - `Front_End::validate_payment_fields`
+        - `Front_End::verify_stripe_payment`
+        - `Front_End::verify_stripe_subscription_intent_and_save`
+      - next fix is param-path-sensitive forward relevance inside already-relevant writers and filter callbacks, not broader cross-request writer lookup
+      - timings-only path diagnostics now show the late delete-batch churn is down to:
+        - `post_meta_value[*][*]`
+        - `post_meta_value[*][_srfm_block_config][*]`
+        - `post_record[*].post_content`
+      - latest latest-tree SureForms `-sink-op delete` rerun now completes in about `48.4s` engine time / `51.3s` wall with about `5.8 GB` RSS, so the remaining cost is late transitive summary growth on the payment path, not parser startup or broad family wakeups
+    - [ ] rerun a no-`-sink-op` latest SureForms full scan and confirm Gutenberg asset helpers no longer dominate late file-batch passes through broad family wakeups
+  - [~] Add bounded path abstraction for exploding state roots.
+    - [x] Keep exact paths while the root fanout stays small.
+    - [x] Collapse large roots into wildcard summaries such as `root[*]`.
+    - [x] Prefer exact-path reads first and wildcard reads second.
+    - [x] Apply the same bounded compaction strategy to exploding storage-path summaries and global storage state, not just static-property roots.
+  - [~] Recompute invalidation from exact or wildcard buckets instead of every concrete key.
+    - [x] collapsed nested static-path buckets
+    - [x] exact path buckets for non-collapsed storage/state families where it still matters
+- [x] Add diagnostics for hot-state roots.
+  - [x] per-pass changed key counters
+  - [x] top changed roots per pass
+  - [x] top summary-size / path-count contributors per pass
+  - [~] Attack parser and allocation overhead using pprof-guided fixes.
+  - [x] Reuse worker-local parser instances in `internal/taintscan/loadFiles`, matching the manifest builder, instead of constructing fresh parser pipelines for every file parse.
+    - worker goroutines now build one fallback parser set and reuse it across all files assigned to that worker
+    - bounded W3 profile improved `load-files` from about `2.074s` to about `915ms`, then to about `508ms` after the later parser-table cache landed
+  - [x] Cache or otherwise amortize parser factory setup for the repeated `NewestSupported/7.4/5.6` fallback sequence.
+    - parser metadata and reduce-action JSON are now decoded once in `parserdata`
+    - compiled reducer callbacks are now cached once per PHP major in `parser/php7.go` and `parser/php8.go`
+    - bounded W3 profile improved total runtime from about `12.91s` baseline to about `5.89s`
+  - [x] Replace hot generic AST traversal paths with lower-allocation traversal for indexing passes that only need read-only walks.
+    - `walkNode` now has fast paths for the hottest AST node kinds instead of always allocating through generic `SubNodes()` traversal
+    - bounded W3 profile improved `build-engine` from about `5.085s` baseline to about `2.055s`, and total allocated bytes dropped from about `12.85 GB` baseline to about `5.47 GB`
+  - [~] Reduce taint-origin allocation churn.
+    - target `originSet.clone`, `originSet.union`, `unionInto`, `summarizeOrigins`, and `appendPathOrigins`
+    - prefer copy-on-write or presized containers over unconditional cloning where semantics allow
+    - evaluate `sync.Pool` only for short-lived shared scratch buffers, not for long-lived engine state
+    - branch-state map snapshots now use shallow map copies in `cloneVarMap`, which kept the full suite green and cut one layer of unnecessary origin-set cloning
+    - `mergeVarMaps` now clones only overlapping keys instead of cloning every left-hand entry up front
+    - global storage/static pass snapshots now reuse pre-recompute map pointers because recompute swaps in fresh maps
+    - targeted hot accumulators now use `unionInto(...)` instead of repeated `.union(...)` allocation churn
+    - read-side variable-origin lookups now reuse the existing `originSet` map instead of cloning on every variable fetch in `evalContainerBase`, `evalAssignedExpr`, and `evalDirectBaseOrigins`; write-side clones remain in `assignToNode`
+    - bounded W3 full-scan profile improved from about `6.91s` total / `7.16s` wall to about `5.55s` total / `5.79s` wall after the read-side clone cuts
+    - store/update paths now use a targeted `unionMapEntry(...)` helper where the old pattern was `dst[key] = dst[key].union(src)` on potentially empty keys; this preserves copy-on-write for existing entries but avoids cloning on first write
+    - bounded W3 full-scan profile improved again from about `5.55s` total / `5.79s` wall to about `5.33s` total / `5.62s` wall after the first `unionMapEntry(...)` sweep
+    - latest alloc profile still shows the main remaining hotspots here:
+      - `originSet.clone` about `627 MB`
+      - `summarizeOrigins` about `288 MB`
+      - `appendPathOrigins` about `262 MB`
+      - `unionInto` about `209 MB`
+    - later broader `unionMapEntry(...)`, key-builder, and `SubNodes()` caching experiments were measured against the same W3 workload and rejected because they regressed total runtime
+  - [ ] Audit regex-heavy reducer compilation and helper parsing for replaceable hot regex calls.
+    - current CPU profile shows substantial time in `regexp.(*Regexp).tryBacktrack` and `FindStringSubmatch` during parser startup
+    - likely hot files: `parser/reducers.go` and `parser/reducer_compiled.go`
+    - shared reducer bodies are now interned by source string so PHP 7 and PHP 8 no longer compile hundreds of duplicate reducer programs independently
+  - [x] Run escape-analysis checks on the hottest parser and taint helpers.
+    - use `-gcflags=-m` around the parser factory, AST walker, and origin-set helpers to find avoidable heap escapes
+    - current output confirms the remaining expensive heap traffic is still mostly real map allocation sites in `originSet.clone`, `mergeVarMaps`, branch state snapshots in `statement_walk.go`, and origin-summary construction rather than missed inlining on the new parser fast paths
+  - [ ] Evaluate Go PGO for release-style scanner binaries using representative plugin CPU profiles.
+    - this is a follow-up optimization pass after the structural allocation fixes, not a substitute for them
+  - [ ] After structural fixes land, benchmark `GOGC` / `GOMEMLIMIT` only as bounded runtime-tuning knobs for large full scans.
+    - use them to trade memory vs GC CPU after allocation reductions, not to paper over avoidable allocations
+  - [~] Track plugin-shaped late-pass blowups so optimizations stay driven by real workloads.
+    - [x] W3 Total Cache bounded full scans remain the primary pprof workload for parser/build/allocation tuning
+    - [x] Latest SureForms full scans show late file-batch blowups in:
+      - `modules/gutenberg/classes/class-spec-gb-helper.php:get_assets`
+      - `modules/gutenberg/classes/class-spec-gb-helper.php:get_block_css_and_js`
+    - [x] Latest SureForms delete-only scans still show late cross-request blowups in:
+      - `inc/form-submit.php:handle_form_submission`
+      - `inc/form-submit.php:handle_form_entry`
+      - `inc/payments/front-end.php:validate_payment_fields`
+      - `inc/payments/front-end.php:verify_stripe_payment`
+      - `inc/payments/front-end.php:verify_stripe_subscription_intent_and_save`
+    - [x] Latest Astra / Starter Templates write-mode probe is no longer a whole-program fallback.
+      - bounded `astra-sites__4.4.41 -sink-op write -max-passes 4` dropped from about `1613` relevant callables / `2.47s` engine time to about `321` relevant callables / `218ms` engine time after direct write-sink seeding landed
+    - [ ] keep adding generic sink-family/path-sensitive pruning instead of plugin-specific exclusions when these workloads reveal broad stored-family liveness
+    - [x] skip transitive source-finding propagation when a caller adds no new flow context to the callee record
+      - this keeps helper chains like `get_assets -> get_block_css_and_js` from retaining identical copied finding sets across every caller summary
+  - [~] Reuse unchanged summaries when a callable's direct callee summaries and compacted storage/static dependency state are unchanged across passes.
+    - [x] index static-read roots and paths per callable so summary reuse can be keyed by the same compacted state the invalidation logic already uses
+    - [x] memoize last-input fingerprints for per-call summary analysis instead of re-running hot helper summaries on identical batch inputs
+    - [x] skip summary equality work entirely for reused callables and compute source-finding fingerprints once per pass instead of recomputing them for logging and early-stop checks
+    - [x] fast-path dependency fingerprints for callables with no direct callee/storage/static inputs so they only compare the current batch name
+    - [x] split transfer-state changes from transitive `SourceFindings` growth for caller invalidation, so late passes do not keep requeueing `handle_form_entry` only because callee finding/context sets expanded under the same sink fingerprint
+      - caller summary reuse and reverse-caller invalidation now key off transfer state plus `ParamFindings`, but ignore pure downstream `SourceFindings` growth
+    - [ ] validate the hit rate on the remaining latest SureForms full-scan hotspots, especially `Spec_Gb_Helper::get_assets` and `Spec_Gb_Helper::get_block_css_and_js`
+    - [ ] split static transfer invalidation from repeated `Spec_Gb_Helper::$script` / `$stylesheet` churn in latest SureForms `-sink-op read`
+      - after the safe storage fixes, pass 6 is now static-only again: `storage_changed=false`, `storage_paths_changed=false`, `static_changed=true`
+      - current remaining hot roots are `static:\Spec_Gb_Helper.$script` and `static:\Spec_Gb_Helper.$stylesheet`
+  - [~] Tighten relevance seeding before the fixed-point starts.
+    - [x] gate direct sink seeding by request reachability for single-family `sql`, `action`, `output`, `write`, and `call` batches so dead helpers do not seed whole-plugin scans
+    - [x] bound same-class cross-request writer expansion with request-reachable filtering before falling back to global writer sets
+    - [x] extend the direct-sink request-reachability gate to multi-op file batches once delete/read/open/include regressions are protected
+      - default no-`-sink-op` file batches now drop dead file helpers the same way focused `sql` / `action` / `call` batches already did, while focused `-sink-op delete` coverage stays unchanged
+    - [x] treat real file-upload / write sinks as direct relevance seeds.
+      - `write`-only scans no longer fall back to analyzing every callable just because the direct-sink detector only knew about read/delete/include families
+    - [x] skip sink-family batches that have no direct sinks after relevance seeding.
+      - batches like `call` now return an empty relevant set instead of scanning the entire plugin when that sink family is absent
+    - [x] scope request-gated relevance to scans where real public entrypoints were discovered.
+      - WordPress plugin scans keep the tighter request gating, while generic synthetic tests without callback/file entrypoints fall back to the broader behavior they expect
+    - [x] split default no-`-sink-op` `write` work out of the classic file batch.
+      - default batches are now `file`, `write`, `output`, `sql`, `action`, `call`, which avoids cross-contaminating delete/read/include scans with upload/write-heavy helpers
+  - [~] Tighten exact-key state invalidation for option/meta/transient heavy plugins before broad family wakeups.
+    - likely first targets from the blowup probes:
+      - `storage:option_value`
+      - `storage:site_option_value`
+      - `storage:user_meta_value`
+      - `storage:post_meta_value`
+      - `storage:transient_value`
+    - [x] stop duplicating exact-key function/API writes into the broad family summary when the exact storage path is already tracked
+      - dynamic family reads like `get_option($key)` now pull from child exact paths instead of depending on the broad family summary to duplicate those writes
+      - this keeps exact option/meta/transient writes analyzable while reducing family-wide churn in later passes
+    - [x] index exact storage-path readers separately from wildcard buckets.
+      - storage invalidation now mirrors static-path invalidation: exact storage paths wake exact readers first, bucket readers only for wildcarded paths, then broad family readers as the last resort
+    - target families currently dominating outlier scans:
+      - `security-malware-firewall`
+      - `cleantalk-spam-protect`
+      - `starter-templates`
+      - `wpvivid-backuprestore`
+      - `the-events-calendar`
+      - `fluentform`
+  - [x] Keep sink-op filtering honest during focused runs.
+    - record-disclosure findings now respect `AllowedSinkOps`, so delete-only scans no longer emit unrelated `wp-request-record-read-to-output-without-cap-check` results
+    - latest bounded SureForms `-sink-op delete -max-passes 5` rerun now reports only the real delete-side rule instead of mixed disclosure noise, which makes later performance profiling easier to interpret
+- [x] Revalidate `forminator__1.44.2` after bounded-path abstraction.
+  - [x] finish under the current timeout budget
+  - [x] keep the real delete sink at `library/model/class-form-entry-model.php:1264`
+  - [x] Closed by acceptance decision: exact upload-path carrier narrowing is not required for current Forminator completion
+- [x] Keep the direct corpus comparator aligned with direct-engine CVE contracts.
+  - [x] support case-level `direct_sink_ops` overrides so direct-engine corpus runs do not inherit overly broad Semgrep config families when the CVE path is narrower
+  - [x] accept legacy upload-surface rule IDs (`file-download-upload`, `upload-api-surface`, `wordpress-upload-helper-surface`) as aliases for the direct engine's file upload/read/delete rule family
+  - [x] let `finding_paths_any` match the direct finding path, trace source path, or trace sink path so older source-oriented contracts stay comparable after direct-engine migration
+  - [x] rebaseline representative cases after the comparator fix and keep timing notes with the new contracts:
+    - `forminator-cve-2025-6463`: `match` in about `15.3s` with direct `delete` coverage at `library/model/class-form-entry-model.php:1264`
+    - `post-smtp-cve-2023-6875`: `match` in about `2.3s` with direct `action` coverage
+    - `sureforms-cve-2025-6691`: `match` in about `1.3s` with direct `delete` coverage at `admin/views/entries-list-table.php:684`
+    - `w3-total-cache-cve-2024-12365`: `match` in about `3.3s` with direct `action` coverage
+
+## Phase 8: Maintainability / File Layout
+
+- [~] Split the direct engine out of the single large `internal/taintscan/taintscan.go` file.
+  - [x] extract flow-context helpers into a dedicated file
+  - [x] extract diagnostics and summary-weight helpers into a dedicated file
+  - [x] extract generic utility helpers into dedicated files
+  - [x] extract call-graph, direct-return-hint, and relevance logic into a dedicated file
+  - [x] extract structural path bucketing and wildcard-compaction helpers into a dedicated file
+  - [x] extract timing and WordPress flow-context collection helpers out of the main engine file
+  - [x] extract AST/name/path helpers into dedicated files
+  - [x] extract origin-set and path-application helpers into dedicated files
+  - [x] extract storage-summary and callback-registration helpers into dedicated files
+  - [x] extract structural-state propagation helpers into a dedicated file
+  - [x] extract global storage/static recompute helpers into a dedicated file
+  - [x] extract WordPress capability-context and route/callback registration helpers into a dedicated file
+  - [x] extract callable collection, class-indexing, and literal-factory inference helpers into a dedicated file
+  - [x] extract loader/parser support into a dedicated file
+  - [x] extract builtin source/sink and propagation model helpers into a dedicated file
+  - [x] extract public scan driver and fixed-point engine run loop into a dedicated file
+  - [x] extract callable analysis and analysis-state scaffolding into a dedicated file
+  - [x] extract source/sink reporting, origin helpers, and engine construction into dedicated files
+  - [x] extract taint-summary path instantiation and argument-path resolution into a dedicated file
+  - [x] keep behavior unchanged while splitting
+  - [x] keep `go test ./...` green after each extraction step
+  - [x] keep `taintscan.go` focused on shared types/constants only, with evaluator logic split into dedicated files
+    - [x] shrink `taintscan.go` from roughly `4.5k` lines to under `1k`
+    - [x] split the remaining evaluator into dedicated `walk`, `expression`, `call`, and `assignment` files
