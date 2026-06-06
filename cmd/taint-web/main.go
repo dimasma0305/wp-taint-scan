@@ -29,6 +29,9 @@ import (
 //go:embed web
 var webFS embed.FS
 
+// version is overridden at build time via -ldflags "-X main.version=...".
+var version = "dev"
+
 func main() {
 	// Worker mode: run one isolated scan and exit. Kept first so the server
 	// flags below don't shadow it.
@@ -45,8 +48,14 @@ func main() {
 		hardCapMB   = flag.Int("hard-cap-mb", 8192, "hard RSS cap; a worker exceeding it is killed and the job is skipped (0 = off)")
 		timeout     = flag.Duration("timeout", 10*time.Minute, "per-scan wall-clock timeout")
 		cacheMaxGB  = flag.Float64("cache-max-gb", 8, "max on-disk cache size before least-recently-used plugins are evicted (0 = unlimited)")
+		showVersion = flag.Bool("version", false, "print version and exit")
 	)
 	flag.Parse()
+
+	if *showVersion {
+		fmt.Println("wp-taint-scan", version)
+		return
+	}
 
 	self, err := os.Executable()
 	if err != nil {

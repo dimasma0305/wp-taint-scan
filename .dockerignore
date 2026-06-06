@@ -1,0 +1,8 @@
+.git
+dist
+bin
+docs
+test/semgrep_bundle_corpus/fixtures
+**/*_test.go
+go.work
+go.work.sum

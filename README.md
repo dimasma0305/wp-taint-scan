@@ -60,31 +60,46 @@ Generic taint scanners drown in false positives on WordPress code because they d
 
 Analysis runs as independent **sink-op batches** (`delete`, `read`, `open`, `include`, `write`, `output`, `sql`, `action`, `call`) so each detector has its own relevance/scoring and one detector can't perturb another's results.
 
-## Install & build
+## Install
 
-Requires **Go 1.25+**. The PHP parser ([`php-parser-go`](https://github.com/dimasma0305/php-parser-go)) is a normal module dependency — no extra checkout needed.
+Pick whichever is easiest — no Go toolchain needed for the first three.
+
+**1. One-line installer** (Linux / macOS, downloads the prebuilt binary):
 
 ```bash
-# install the web UI
-go install github.com/dimasma0305/wp-taint-scan/cmd/taint-web@latest
-
-# …or the CLI scanner
-go install github.com/dimasma0305/wp-taint-scan/cmd/taint-scan@latest
+curl -fsSL https://raw.githubusercontent.com/dimasma0305/wp-taint-scan/main/scripts/install.sh | sh
 ```
 
-Or from source:
+**2. Download a prebuilt binary** for your OS/arch from the
+[**Releases**](https://github.com/dimasma0305/wp-taint-scan/releases/latest) page
+(Linux/macOS `.tar.gz`, Windows `.zip` — each contains `taint-web` + `taint-scan`), unpack, and run.
+
+**3. Docker:**
+
+```bash
+docker run --rm -p 8080:8080 ghcr.io/dimasma0305/wp-taint-scan
+# then open http://localhost:8080
+```
+
+**4. With Go** (1.25+):
+
+```bash
+go install github.com/dimasma0305/wp-taint-scan/cmd/taint-web@latest   # web UI
+go install github.com/dimasma0305/wp-taint-scan/cmd/taint-scan@latest  # CLI scanner
+```
+
+**5. From source:**
 
 ```bash
 git clone https://github.com/dimasma0305/wp-taint-scan
 cd wp-taint-scan
-go build -o bin/taint-web ./cmd/taint-web    # web UI
-go build -o bin/phparser  ./cmd/taint-scan   # CLI scanner
+go build -o bin/taint-web ./cmd/taint-web
 ```
 
-Then launch the web UI and open <http://localhost:8080>:
+Then start the web UI and open <http://localhost:8080>:
 
 ```bash
-./bin/taint-web
+taint-web            # (or ./bin/taint-web from a source build)
 ```
 
 ## Usage
